@@ -49,14 +49,14 @@ local activeConnections = {}
 -- ===========================================
 local ESPConfig = {
     -- Generator ESP
-    generatorFillTransparency = 0.85,
+    generatorFillTransparency = 0.75,
     generatorOutlineTransparency = 1,
-    generatorTextSize = 14,
+    generatorTextSize = 7,
     
     -- Player ESP
-    playerFillTransparency = 0.9,
+    playerFillTransparency = 0.75,
     playerOutlineTransparency = 1,
-    playerTextSize = 14,
+    playerTextSize = 7,
     
     -- Colors
     survivorColor = Color3.fromRGB(0, 255, 0),
@@ -140,7 +140,7 @@ local function createGeneratorESPHighlight(generator)
         billboardGui = Instance.new("BillboardGui")
         billboardGui.Name = "GeneratorProgressESP"
         billboardGui.Adornee = attachmentPart
-        billboardGui.Size = UDim2.new(0, 150, 0, 60)
+        billboardGui.Size = UDim2.new(0, 120, 0, 40)
         billboardGui.StudsOffset = Vector3.new(0, 0, 0)
         billboardGui.AlwaysOnTop = true
         billboardGui.Parent = attachmentPart
@@ -157,6 +157,11 @@ local function createGeneratorESPHighlight(generator)
         textLabel.TextStrokeTransparency = 0.5
         textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
         textLabel.Parent = billboardGui
+
+        local textSizeConstraint = Instance.new("UITextSizeConstraint")
+        textSizeConstraint.MaxTextSize = 7
+        textSizeConstraint.MinTextSize = 7
+        textSizeConstraint.Parent = textLabel
     end
     
     generatorESPHighlights[generator] = {
@@ -422,7 +427,7 @@ local function createPlayerESP(player, isKillerPlayer)
                 line2 = "[" .. equippedItem .. "]"
             end
             
-            displayText = line1then
+            displayText = line1
             if line2 ~= "" then
                 displayText = displayText .. "\n" .. line2
             end
@@ -431,7 +436,7 @@ local function createPlayerESP(player, isKillerPlayer)
         billboardGui = Instance.new("BillboardGui")
         billboardGui.Name = "PlayerNameESP"
         billboardGui.Adornee = attachmentPart
-        billboardGui.Size = UDim2.new(0, 200, 0, 90)
+        billboardGui.Size = UDim2.new(0, 120, 0, 40)
         billboardGui.StudsOffset = Vector3.new(0, 0, 0)
         billboardGui.AlwaysOnTop = true
         billboardGui.Parent = attachmentPart
@@ -460,8 +465,8 @@ local function createPlayerESP(player, isKillerPlayer)
         textLabel.Parent = billboardGui
 
         local textSizeConstraint = Instance.new("UITextSizeConstraint")
-        textSizeConstraint.MaxTextSize = 14
-        textSizeConstraint.MinTextSize = 14  
+        textSizeConstraint.MaxTextSize = 7
+        textSizeConstraint.MinTextSize = 7
         textSizeConstraint.Parent = textLabel
     end
     
@@ -693,6 +698,7 @@ local function disableSpeedBoost()
         humanoid.WalkSpeed = 16 -- Reset ke default speed (sesuaikan dengan CFG.walk jika ada)
     end
 end
+
 -- ===========================================
 -- Auto Perfect Skill Check Functions
 -- ===========================================
