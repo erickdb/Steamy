@@ -371,12 +371,180 @@ local function disableGeneratorESPHighlight()
     end
 end
 
+<<<<<<< HEAD
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PUMPKIN ESP FUNCTIONS
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local function getPumpkins()
+    local pumpkins = {}
+    local map = Workspace:FindFirstChild("Map")
+    
+    if map then
+        local pumpkinsFolder = map:FindFirstChild("Pumpkins")
+        if pumpkinsFolder then
+            for _, child in ipairs(pumpkinsFolder:GetChildren()) do
+                if child:IsA("BasePart") or child:IsA("Model") then
+                    table.insert(pumpkins, child)
+                end
+            end
+        end
+    end
+    
+    return pumpkins
+end
+
+local function createPumpkinESPHighlight(pumpkin)
+    if pumpkinESPHighlights[pumpkin] then return end
+    
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "Pumpkin_ESP_Highlight"
+    highlight.FillColor = Color3.fromRGB(255, 140, 0)
+    highlight.OutlineColor = Color3.fromRGB(255, 69, 0)
+    highlight.FillTransparency = 0.7
+    highlight.OutlineTransparency = 1
+    highlight.Parent = pumpkin
+    
+    pumpkinESPHighlights[pumpkin] = highlight
+end
+
+local function removePumpkinESPHighlight(pumpkin)
+    if pumpkinESPHighlights[pumpkin] then
+        pumpkinESPHighlights[pumpkin]:Destroy()
+        pumpkinESPHighlights[pumpkin] = nil
+    end
+end
+
+local function enablePumpkinESPHighlight()
+    local pumpkins = getPumpkins()
+    for _, pumpkin in ipairs(pumpkins) do
+        createPumpkinESPHighlight(pumpkin)
+    end
+end
+
+local function disablePumpkinESPHighlight()
+    for pumpkin, _ in pairs(pumpkinESPHighlights) do
+        removePumpkinESPHighlight(pumpkin)
+    end
+end
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- LEVER ESP FUNCTIONS
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local function getLever()
+    local map = Workspace:FindFirstChild("Map")
+    if not map then return nil end
+    
+    -- Search recursively through all descendants to find ExitLever
+    for _, descendant in ipairs(map:GetDescendants()) do
+        if descendant.Name == "ExitLever" then
+            local main = descendant:FindFirstChild("Main")
+            if main then
+                return main
+            end
+        end
+    end
+    
+    return nil
+end
+
+local function createLeverESP(lever)
+    if leverESPHighlights[lever] then return end
+    
+    -- Create Highlight
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "Lever_ESP_Highlight"
+    highlight.FillColor = Color3.fromRGB(255, 0, 0) -- Start with red
+    highlight.OutlineColor = Color3.fromRGB(255, 165, 0)
+    highlight.FillTransparency = 0.7
+    highlight.OutlineTransparency = 1
+    highlight.Parent = lever
+    
+    -- Create Billboard for Progress Display
+    local billboardGui = Instance.new("BillboardGui")
+    billboardGui.Name = "LeverProgressESP"
+    billboardGui.Adornee = lever
+    billboardGui.Size = UDim2.new(0, 120, 0, 50)
+    billboardGui.StudsOffset = Vector3.new(0, 4, 0)
+    billboardGui.AlwaysOnTop = false
+    billboardGui.Parent = lever
+    
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Text = "Exit Lever\n0%"
+    textLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+    textLabel.TextSize = 16
+    textLabel.Font = Enum.Font.Gotham
+    textLabel.TextStrokeTransparency = 0.3
+    textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    textLabel.Parent = billboardGui
+    
+    leverESPHighlights[lever] = {
+        highlight = highlight,
+        billboard = billboardGui,
+        textLabel = textLabel
+    }
+    
+    -- Update progress loop
+    task.spawn(function()
+        while leverESPHighlights[lever] and leverESPEnabled do
+            local progress = lever:GetAttribute("ActivationProgress") or 0
+            progress = math.clamp(progress, 0, 100)
+            
+            -- Calculate color gradient from red to green
+            local red = math.floor(255 * (1 - progress / 100))
+            local green = math.floor(255 * (progress / 100))
+            local color = Color3.fromRGB(red, green, 0)
+            
+            -- Update highlight color
+            if leverESPHighlights[lever] and leverESPHighlights[lever].highlight then
+                leverESPHighlights[lever].highlight.FillColor = color
+            end
+            
+            -- Update text label
+            if leverESPHighlights[lever] and leverESPHighlights[lever].textLabel then
+                leverESPHighlights[lever].textLabel.Text = string.format("Exit Lever\n%.1f%%", progress)
+                leverESPHighlights[lever].textLabel.TextColor3 = color
+            end
+            
+            task.wait(0.1) -- Update every 0.1 seconds for smooth color transition
+        end
+    end)
+end
+
+local function removeLeverESP(lever)
+    if leverESPHighlights[lever] then
+        if leverESPHighlights[lever].highlight then
+            leverESPHighlights[lever].highlight:Destroy()
+        end
+        if leverESPHighlights[lever].billboard then
+            leverESPHighlights[lever].billboard:Destroy()
+        end
+        leverESPHighlights[lever] = nil
+    end
+end
+
+local function enableLeverESP()
+    local lever = getLever()
+    if lever then
+        createLeverESP(lever)
+    end
+end
+
+local function disableLeverESP()
+    for lever, _ in pairs(leverESPHighlights) do
+        removeLeverESP(lever)
+    end
+=======
 -- ===========================================
 -- Player ESP Functions
 -- ===========================================
 local function isSpectator(player)
     if not player then return false end
     return player.Team and player.Team.Name == "Spectator"
+>>>>>>> 22d7393f71d37e4552e5bf73ed534cabf1fa6288
 end
 
 local function isKiller(player)
@@ -400,35 +568,102 @@ local function createPlayerESP(player, isKillerPlayer)
     local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
     if not humanoidRootPart then return end
     
-    -- Create Highlight
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "Player_ESP_Highlight"
-    if isKillerPlayer then
-        highlight.FillColor = Color3.fromRGB(255, 0, 0) -- Red for Killer
-    else
-        highlight.FillColor = Color3.fromRGB(0, 255, 0) -- Green for Survivor
-    end
-    highlight.FillTransparency = 0.7
-    highlight.OutlineTransparency = 1
-    highlight.Parent = character
+    local isLocalSpectator = isSpectator(Players.LocalPlayer)
+    local isTargetSpectator = isSpectator(player)
     
-    -- Get killer type if player is killer
-    local displayName = player.Name
-    local itemText = ""
-    
-    if isKillerPlayer then
-        -- Get killer type from player attributes
-        local killerType = player:GetAttribute("SelectedKiller")
-        
-        if killerType and killerType ~= "" then
-            itemText = "\n[" .. killerType .. "]"
+    local highlight = nil
+    -- Show ESP for Killer and Survivor (even if local player is spectator)
+    if not isTargetSpectator then
+        if (isKillerPlayer and killerESPEnabled) or (not isKillerPlayer and survivorESPEnabled) then
+            highlight = Instance.new("Highlight")
+            highlight.Name = "Player_ESP_Highlight"
+            if isKillerPlayer then
+                highlight.FillColor = ESPConfig.killerColor
+            else
+                highlight.FillColor = ESPConfig.survivorColor
+            end
+            highlight.FillTransparency = ESPConfig.playerFillTransparency
+            highlight.OutlineTransparency = ESPConfig.playerOutlineTransparency
+            highlight.Parent = character
         end
-    else
-        -- Get equipped item for survivor
-        if survivorItemESPEnabled then
-            local equippedItem = player:GetAttribute("EquippedItem")
-            if equippedItem and equippedItem ~= "" then
-                itemText = "\n[" .. equippedItem .. "]"
+    end
+    
+    local attachmentPart = nil
+    local billboardGui = nil
+    local textLabel = nil
+    
+    local shouldShowBillboard = false
+    
+    if spectatorInfoEnabled and isTargetSpectator then
+        shouldShowBillboard = true
+    end
+    
+    -- Show billboard for Killer and Survivor (even if local player is spectator)
+    if not isTargetSpectator then
+        if (isKillerPlayer and killerESPEnabled) or (not isKillerPlayer and survivorESPEnabled) then
+            shouldShowBillboard = true
+        end
+    end
+    
+    if shouldShowBillboard then
+        attachmentPart = Instance.new("Part")
+        attachmentPart.Name = "PlayerTextAttachment"
+        attachmentPart.Transparency = 1
+        attachmentPart.CanCollide = false
+        attachmentPart.Anchored = false
+        attachmentPart.Size = Vector3.new(0.1, 0.1, 0.1)
+        attachmentPart.CFrame = humanoidRootPart.CFrame * CFrame.new(0, 3, 0)
+        attachmentPart.Parent = character
+        
+        local weld = Instance.new("WeldConstraint")
+        weld.Part0 = humanoidRootPart
+        weld.Part1 = attachmentPart
+        weld.Parent = attachmentPart
+        
+        local gears = player:GetAttribute("Gears") or 0
+        local screws = player:GetAttribute("Screws") or 0
+        local selectedKiller = player:GetAttribute("SelectedKiller") or ""
+        local equippedItem = player:GetAttribute("EquippedItem") or ""
+        
+        local displayText = ""
+        
+        if isTargetSpectator then
+            local line1 = ""
+            local killerPart = ""
+            local itemPart = ""
+            
+            if selectedKiller ~= "" then
+                killerPart = "[" .. selectedKiller .. "]"
+            end
+            
+            if equippedItem ~= "" then
+                itemPart = "[" .. equippedItem .. "]"
+            end
+            
+            if killerPart ~= "" and itemPart ~= "" then
+                line1 = killerPart .. " " .. itemPart
+            elseif killerPart ~= "" then
+                line1 = killerPart
+            elseif itemPart ~= "" then
+                line1 = itemPart
+            end
+            
+            local line2 = string.format("[%d] [%d]", gears, screws)
+            local line3 = player.Name
+            
+            if line1 ~= "" then
+                displayText = line1 .. "\n" .. line2 .. "\n" .. line3
+            else
+                displayText = line2 .. "\n" .. line3
+            end
+        else
+            local line1 = player.Name
+            local line2 = ""
+            
+            if isKillerPlayer and selectedKiller ~= "" then
+                line2 = "[" .. selectedKiller .. "]"
+            elseif not isKillerPlayer and equippedItem ~= "" then
+                line2 = "[" .. equippedItem .. "]"
             end
             
             displayText = line1
@@ -1103,9 +1338,9 @@ local function createHealTargetESP(character)
     
     local highlight = Instance.new("Highlight")
     highlight.Name = "HealTarget_ESP"
-    highlight.FillColor = Color3.fromRGB(0, 255, 255) -- Cyan
-    highlight.FillTransparency = 0.7
-    highlight.OutlineTransparency = 1
+    highlight.FillColor = ESPConfig.healTargetColor
+    highlight.FillTransparency = ESPConfig.playerFillTransparency
+    highlight.OutlineTransparency = ESPConfig.playerOutlineTransparency
     highlight.Parent = character
     
     healTargetESP = highlight
