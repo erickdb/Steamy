@@ -51,12 +51,12 @@ local ESPConfig = {
     -- Generator ESP
     generatorFillTransparency = 0.85,
     generatorOutlineTransparency = 1,
-    generatorTextSize = 7,
+    generatorTextSize = 14,
     
     -- Player ESP
     playerFillTransparency = 0.9,
     playerOutlineTransparency = 1,
-    playerTextSize = 7,
+    playerTextSize = 14,
     
     -- Colors
     survivorColor = Color3.fromRGB(0, 255, 0),
@@ -460,8 +460,8 @@ local function createPlayerESP(player, isKillerPlayer)
         textLabel.Parent = billboardGui
 
         local textSizeConstraint = Instance.new("UITextSizeConstraint")
-        textSizeConstraint.MaxTextSize = 7
-        textSizeConstraint.MinTextSize = 7  
+        textSizeConstraint.MaxTextSize = 14
+        textSizeConstraint.MinTextSize = 14  
         textSizeConstraint.Parent = textLabel
     end
     
