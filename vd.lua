@@ -26,7 +26,6 @@ local healKeybind = Enum.KeyCode.F
 
 local speedBoostEnabled = false
 local currentSpeedBoost = 16
--- local speedBoostConnection = nil
 
 local autoPerfectEnabled = false
 local autoPerfectConnection = nil
@@ -50,14 +49,14 @@ local activeConnections = {}
 -- ===========================================
 local ESPConfig = {
     -- Generator ESP
-    generatorFillTransparency = 0.75,
+    generatorFillTransparency = 0.85,
     generatorOutlineTransparency = 1,
-    generatorTextSize = 18,
+    generatorTextSize = 14,
     
     -- Player ESP
-    playerFillTransparency = 0.75,
+    playerFillTransparency = 0.9,
     playerOutlineTransparency = 1,
-    playerTextSize = 16,
+    playerTextSize = 14,
     
     -- Colors
     survivorColor = Color3.fromRGB(0, 255, 0),
@@ -154,7 +153,8 @@ local function createGeneratorESPHighlight(generator)
         textLabel.Text = "Generator\n0%"
         textLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
         textLabel.TextSize = ESPConfig.generatorTextSize
-        textLabel.Font = Enum.Font.Gotham
+        textLabel.TextScaled = true
+        textLabel.Font = Enum.Font.GothamBold
         textLabel.TextStrokeTransparency = 0.5
         textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
         textLabel.Parent = billboardGui
@@ -455,10 +455,16 @@ local function createPlayerESP(player, isKillerPlayer)
         end
         
         textLabel.TextSize = ESPConfig.playerTextSize
-        textLabel.Font = Enum.Font.Gotham
+        textLabel.TextScaled = true
+        textLabel.Font = Enum.Font.GothamBold
         textLabel.TextStrokeTransparency = 0.5
         textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
         textLabel.Parent = billboardGui
+
+        local textSizeConstraint = Instance.new("UITextSizeConstraint")
+        textSizeConstraint.MaxTextSize = 15
+        textSizeConstraint.MinTextSize = 8  
+        textSizeConstraint.Parent = textLabel
     end
     
     playerESPData[player] = {
