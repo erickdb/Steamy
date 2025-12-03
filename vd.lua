@@ -25,8 +25,7 @@ local healTargetESP = nil
 local healKeybind = Enum.KeyCode.F
 
 local speedBoostEnabled = false
-local currentSpeedBoost = 1.1
-local speedBoostConnection = nil
+local currentSpeedBoost = 16
 
 local autoPerfectEnabled = false
 local autoPerfectConnection = nil
@@ -50,14 +49,14 @@ local activeConnections = {}
 -- ===========================================
 local ESPConfig = {
     -- Generator ESP
-    generatorFillTransparency = 0.75,
+    generatorFillTransparency = 0.85,
     generatorOutlineTransparency = 1,
-    generatorTextSize = 18,
+    generatorTextSize = 7,
     
     -- Player ESP
-    playerFillTransparency = 0.75,
+    playerFillTransparency = 0.9,
     playerOutlineTransparency = 1,
-    playerTextSize = 16,
+    playerTextSize = 7,
     
     -- Colors
     survivorColor = Color3.fromRGB(0, 255, 0),
@@ -423,7 +422,7 @@ local function createPlayerESP(player, isKillerPlayer)
                 line2 = "[" .. equippedItem .. "]"
             end
             
-            displayText = line1
+            displayText = line1then
             if line2 ~= "" then
                 displayText = displayText .. "\n" .. line2
             end
@@ -459,6 +458,11 @@ local function createPlayerESP(player, isKillerPlayer)
         textLabel.TextStrokeTransparency = 0.5
         textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
         textLabel.Parent = billboardGui
+
+        local textSizeConstraint = Instance.new("UITextSizeConstraint")
+        textSizeConstraint.MaxTextSize = 7
+        textSizeConstraint.MinTextSize = 7  
+        textSizeConstraint.Parent = textLabel
     end
     
     playerESPData[player] = {
@@ -614,15 +618,20 @@ local function disableCrosshair()
 end
 
 -- ===========================================
--- Speed Boost Functions (EVENT-BASED)
+-- Speed Boost Functions (WALKSPEED-BASED)
 -- ===========================================
+local function getHumanoid()
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        return player.Character:FindFirstChildOfClass("Humanoid")
+    end
+    return nil
+end
+
 local function applySpeedBoost()
-    local localPlayer = Players.LocalPlayer
-    if not localPlayer.Character then return end
-    
-    local workspaceCharacter = Workspace:FindFirstChild(localPlayer.Name)
-    if workspaceCharacter then
-        workspaceCharacter:SetAttribute("speedboost", currentSpeedBoost)
+    local humanoid = getHumanoid()
+    if humanoid then
+        humanoid.WalkSpeed = currentSpeedBoost
     end
 end
 
@@ -642,13 +651,13 @@ local function enableSpeedBoost()
         end
     end)
     
-    -- ✅ IMPROVED: Use GetAttributeChangedSignal to detect if speedboost gets reset
-    local function monitorSpeedBoost()
-        local workspaceChar = Workspace:FindFirstChild(Players.LocalPlayer.Name)
-        if workspaceChar then
-            local conn = workspaceChar:GetAttributeChangedSignal("speedboost"):Connect(function()
+    -- ✅ Monitor WalkSpeed changes to reapply if reset
+    local function monitorWalkSpeed()
+        local humanoid = getHumanoid()
+        if humanoid then
+            local conn = humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
                 if speedBoostEnabled then
-                    local currentValue = workspaceChar:GetAttribute("speedboost")
+                    local currentValue = humanoid.WalkSpeed
                     if currentValue ~= currentSpeedBoost then
                         task.wait(0.1)
                         applySpeedBoost()
@@ -659,12 +668,12 @@ local function enableSpeedBoost()
         end
     end
     
-    monitorSpeedBoost()
+    monitorWalkSpeed()
     
     -- Monitor for new character
     local charConn = Players.LocalPlayer.CharacterAdded:Connect(function()
         task.wait(0.5)
-        monitorSpeedBoost()
+        monitorWalkSpeed()
     end)
     addConnection("speedboost", charConn)
 end
@@ -679,27 +688,11 @@ local function disableSpeedBoost()
     
     disconnectAll("speedboost")
     
-    local localPlayer = Players.LocalPlayer
-    if localPlayer.Character then
-        local workspaceCharacter = Workspace:FindFirstChild(localPlayer.Name)
-        if workspaceCharacter then
-            workspaceCharacter:SetAttribute("speedboost", 1)
-        end
-        
-        local humanoid = localPlayer.Character:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            humanoid:SetAttribute("speedboost", 1)
-        end
+    local humanoid = getHumanoid()
+    if humanoid then
+        humanoid.WalkSpeed = 16 -- Reset ke default speed (sesuaikan dengan CFG.walk jika ada)
     end
 end
-
-local function updateSpeedBoost(newValue)
-    currentSpeedBoost = math.clamp(newValue, 1, 2)
-    if speedBoostEnabled then
-        applySpeedBoost()
-    end
-end
-
 -- ===========================================
 -- Auto Perfect Skill Check Functions
 -- ===========================================
@@ -1520,7 +1513,7 @@ SurvivorTab:Section({
 })
 
 SurvivorTab:Toggle({
-    Title = "Enable Speed Boost",
+    Title = "Enable Speed Boost (Killer & Survivor)",
     Desc = "Boost your movement speed",
     Icon = "zap",
     Value = false,
@@ -1534,13 +1527,13 @@ SurvivorTab:Toggle({
 })
 
 SurvivorTab:Slider({
-    Title = "Speed Multiplier",
-    Desc = "Set speed boost multiplier",
-    Step = 0.01,
+    Title = "Speed Boost Value (Default 16)",
+    Desc = "Set speed boost value",
+    Step = 1,
     Value = {
         Min = 1,
-        Max = 2,
-        Default = 1.1,
+        Max = 100,
+        Default = 16,
     },
     Callback = function(value)
         currentSpeedBoost = value
