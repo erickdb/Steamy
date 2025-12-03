@@ -48,8 +48,7 @@ local healKeybind = Enum.KeyCode.F
 
 --// Speed Boost State
 local speedBoostEnabled = false
-local currentSpeedBoost = 1.1
-local speedBoostConnection = nil
+local currentSpeedBoost = 16
 
 --// Auto Perfect Generator State
 local autoPerfectEnabled = false
@@ -103,7 +102,7 @@ local function createGeneratorESPHighlight(generator)
     highlight.Name = "Generator_ESP_Highlight"
     highlight.FillColor = Color3.fromRGB(255, 0, 0) -- Start with red
     highlight.OutlineColor = Color3.fromRGB(255, 165, 0)
-    highlight.FillTransparency = 0.1
+    highlight.FillTransparency = 0.7
     highlight.OutlineTransparency = 1
     highlight.Parent = generator
     
@@ -219,7 +218,7 @@ local function createPumpkinESPHighlight(pumpkin)
     highlight.Name = "Pumpkin_ESP_Highlight"
     highlight.FillColor = Color3.fromRGB(255, 140, 0)
     highlight.OutlineColor = Color3.fromRGB(255, 69, 0)
-    highlight.FillTransparency = 0.1
+    highlight.FillTransparency = 0.7
     highlight.OutlineTransparency = 1
     highlight.Parent = pumpkin
     
@@ -275,7 +274,7 @@ local function createLeverESP(lever)
     highlight.Name = "Lever_ESP_Highlight"
     highlight.FillColor = Color3.fromRGB(255, 0, 0) -- Start with red
     highlight.OutlineColor = Color3.fromRGB(255, 165, 0)
-    highlight.FillTransparency = 0.1
+    highlight.FillTransparency = 0.7
     highlight.OutlineTransparency = 1
     highlight.Parent = lever
     
@@ -390,7 +389,7 @@ local function createPlayerESP(player, isKillerPlayer)
     else
         highlight.FillColor = Color3.fromRGB(0, 255, 0) -- Green for Survivor
     end
-    highlight.FillTransparency = 0.1
+    highlight.FillTransparency = 0.7
     highlight.OutlineTransparency = 1
     highlight.Parent = character
     
@@ -691,18 +690,21 @@ local function disableCrosshair()
     end
 end
 
--- ═══════════════════════════════════════════════════════════════════════════
--- SPEED BOOST FUNCTIONS
--- ═══════════════════════════════════════════════════════════════════════════
+-- ===========================================
+-- Speed Boost Functions (WALKSPEED-BASED)
+-- ===========================================
+local function getHumanoid()
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        return player.Character:FindFirstChildOfClass("Humanoid")
+    end
+    return nil
+end
 
 local function applySpeedBoost()
-    local localPlayer = Players.LocalPlayer
-    if not localPlayer.Character then return end
-    
-    -- Set attribute on Workspace character model
-    local workspaceCharacter = Workspace:FindFirstChild(localPlayer.Name)
-    if workspaceCharacter then
-        workspaceCharacter:SetAttribute("speedboost", currentSpeedBoost)
+    local humanoid = getHumanoid()
+    if humanoid then
+        humanoid.WalkSpeed = currentSpeedBoost
     end
 end
 
@@ -710,25 +712,43 @@ local function enableSpeedBoost()
     speedBoostEnabled = true
     applySpeedBoost()
     
-    -- Monitor character respawn
     if speedBoostConnection then
         speedBoostConnection:Disconnect()
     end
     
+    -- ✅ Apply on character respawn
     speedBoostConnection = Players.LocalPlayer.CharacterAdded:Connect(function(character)
         if speedBoostEnabled then
-            task.wait(0.5) -- Wait for character to load
+            task.wait(0.5)
             applySpeedBoost()
         end
     end)
     
-    -- Keep applying speed boost
-    task.spawn(function()
-        while speedBoostEnabled do
-            applySpeedBoost()
-            task.wait(1)
+    -- ✅ Monitor WalkSpeed changes to reapply if reset
+    local function monitorWalkSpeed()
+        local humanoid = getHumanoid()
+        if humanoid then
+            local conn = humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+                if speedBoostEnabled then
+                    local currentValue = humanoid.WalkSpeed
+                    if currentValue ~= currentSpeedBoost then
+                        task.wait(0.1)
+                        applySpeedBoost()
+                    end
+                end
+            end)
+            addConnection("speedboost", conn)
         end
+    end
+    
+    monitorWalkSpeed()
+    
+    -- Monitor for new character
+    local charConn = Players.LocalPlayer.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        monitorWalkSpeed()
     end)
+    addConnection("speedboost", charConn)
 end
 
 local function disableSpeedBoost()
@@ -739,26 +759,11 @@ local function disableSpeedBoost()
         speedBoostConnection = nil
     end
     
-    local localPlayer = Players.LocalPlayer
-    if localPlayer.Character then
-        -- Reset on Workspace character
-        local workspaceCharacter = Workspace:FindFirstChild(localPlayer.Name)
-        if workspaceCharacter then
-            workspaceCharacter:SetAttribute("speedboost", 1)
-        end
-        
-        -- Reset on Humanoid
-        local humanoid = localPlayer.Character:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            humanoid:SetAttribute("speedboost", 1)
-        end
-    end
-end
-
-local function updateSpeedBoost(newValue)
-    currentSpeedBoost = math.clamp(newValue, 1, 2)
-    if speedBoostEnabled then
-        applySpeedBoost()
+    disconnectAll("speedboost")
+    
+    local humanoid = getHumanoid()
+    if humanoid then
+        humanoid.WalkSpeed = 16 -- Reset ke default speed (sesuaikan dengan CFG.walk jika ada)
     end
 end
 
@@ -1252,7 +1257,7 @@ local function createHealTargetESP(character)
     local highlight = Instance.new("Highlight")
     highlight.Name = "HealTarget_ESP"
     highlight.FillColor = Color3.fromRGB(0, 255, 255) -- Cyan
-    highlight.FillTransparency = 0.1
+    highlight.FillTransparency = 0.7
     highlight.OutlineTransparency = 1
     highlight.Parent = character
     
@@ -2123,7 +2128,7 @@ SurvivorTab:Section({
 })
 
 SurvivorTab:Toggle({
-    Title = "Enable Speed Boost",
+    Title = "Enable Speed Boost (Killer & Survivor)",
     Desc = "Boost your movement speed",
     Icon = "zap",
     Value = false,
@@ -2137,13 +2142,13 @@ SurvivorTab:Toggle({
 })
 
 SurvivorTab:Slider({
-    Title = "Speed Multiplier",
-    Desc = "Set speed boost multiplier",
-    Step = 0.01,
+    Title = "Speed Boost Value (Default 16)",
+    Desc = "Set speed boost value",
+    Step = 1,
     Value = {
         Min = 1,
-        Max = 2,
-        Default = 1.1,
+        Max = 100,
+        Default = 16,
     },
     Callback = function(value)
         currentSpeedBoost = value
