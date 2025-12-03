@@ -153,7 +153,6 @@ local function createGeneratorESPHighlight(generator)
         textLabel.Text = "Generator\n0%"
         textLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
         textLabel.TextSize = ESPConfig.generatorTextSize
-        textLabel.TextScaled = true
         textLabel.Font = Enum.Font.GothamBold
         textLabel.TextStrokeTransparency = 0.5
         textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
@@ -423,7 +422,7 @@ local function createPlayerESP(player, isKillerPlayer)
                 line2 = "[" .. equippedItem .. "]"
             end
             
-            displayText = line1
+            displayText = line1then
             if line2 ~= "" then
                 displayText = displayText .. "\n" .. line2
             end
@@ -455,7 +454,6 @@ local function createPlayerESP(player, isKillerPlayer)
         end
         
         textLabel.TextSize = ESPConfig.playerTextSize
-        textLabel.TextScaled = true
         textLabel.Font = Enum.Font.GothamBold
         textLabel.TextStrokeTransparency = 0.5
         textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
