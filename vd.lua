@@ -51,12 +51,12 @@ local ESPConfig = {
     -- Generator ESP
     generatorFillTransparency = 0.75,
     generatorOutlineTransparency = 1,
-    generatorTextSize = 18,
+    generatorTextSize = 8,
     
     -- Player ESP
     playerFillTransparency = 0.75,
     playerOutlineTransparency = 1,
-    playerTextSize = 16,
+    playerTextSize = 8,
     
     -- Colors
     survivorColor = Color3.fromRGB(0, 255, 0),
