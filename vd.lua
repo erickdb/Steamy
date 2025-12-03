@@ -51,12 +51,12 @@ local ESPConfig = {
     -- Generator ESP
     generatorFillTransparency = 0.75,
     generatorOutlineTransparency = 1,
-    generatorTextSize = 7,
+    generatorTextSize = 18,
     
     -- Player ESP
     playerFillTransparency = 0.75,
     playerOutlineTransparency = 1,
-    playerTextSize = 7,
+    playerTextSize = 16,
     
     -- Colors
     survivorColor = Color3.fromRGB(0, 255, 0),
@@ -111,8 +111,8 @@ local function createGeneratorESPHighlight(generator)
     highlight.Name = "Generator_ESP_Highlight"
     highlight.FillColor = Color3.fromRGB(255, 0, 0)
     highlight.OutlineColor = Color3.fromRGB(255, 165, 0)
-    highlight.FillTransparency = 0.7
-    highlight.OutlineTransparency = 1
+    highlight.FillTransparency = ESPConfig.generatorFillTransparency
+    highlight.OutlineTransparency = ESPConfig.generatorOutlineTransparency
     highlight.Parent = generator
     
     local primaryPart = generator.PrimaryPart or generator:FindFirstChildWhichIsA("BasePart")
@@ -140,7 +140,7 @@ local function createGeneratorESPHighlight(generator)
         billboardGui = Instance.new("BillboardGui")
         billboardGui.Name = "GeneratorProgressESP"
         billboardGui.Adornee = attachmentPart
-        billboardGui.Size = UDim2.new(0, 120, 0, 40)
+        billboardGui.Size = UDim2.new(0, 150, 0, 60)
         billboardGui.StudsOffset = Vector3.new(0, 0, 0)
         billboardGui.AlwaysOnTop = true
         billboardGui.Parent = attachmentPart
@@ -157,11 +157,6 @@ local function createGeneratorESPHighlight(generator)
         textLabel.TextStrokeTransparency = 0.5
         textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
         textLabel.Parent = billboardGui
-
-        local textSizeConstraint = Instance.new("UITextSizeConstraint")
-        textSizeConstraint.MaxTextSize = 7
-        textSizeConstraint.MinTextSize = 7
-        textSizeConstraint.Parent = textLabel
     end
     
     generatorESPHighlights[generator] = {
@@ -171,42 +166,119 @@ local function createGeneratorESPHighlight(generator)
         textLabel = billboardGui and billboardGui:FindFirstChildOfClass("TextLabel") or nil
     }
     
-    -- Update progress loop
-    task.spawn(function()
-        while generatorESPHighlights[generator] and generatorESPHighlightEnabled do
-            local progress = generator:GetAttribute("RepairProgress") or 0
-            progress = math.clamp(progress, 0, 100)
-            
-            -- Calculate color gradient from red to green
-            local red = math.floor(255 * (1 - progress / 100))
-            local green = math.floor(255 * (progress / 100))
-            local color = Color3.fromRGB(red, green, 0)
-            
-            -- Update highlight color
-            if generatorESPHighlights[generator] and generatorESPHighlights[generator].highlight then
-                generatorESPHighlights[generator].highlight.FillColor = color
-            end
-            
-            -- Update text label
-            if generatorESPHighlights[generator] and generatorESPHighlights[generator].textLabel then
-                generatorESPHighlights[generator].textLabel.Text = string.format("Generator\n%.1f%%", progress)
+    -- Initialize progress tracking
+    generatorProgressTracking[generator] = {
+        lastProgress = 0,
+        lastTime = tick(),
+        progressRate = 0
+    }
+    
+    -- ✅ EVENT-BASED: Monitor attribute changes instead of while loop
+    local attributeConnection = generator:GetAttributeChangedSignal("RepairProgress"):Connect(function()
+        if not generatorESPHighlights[generator] or not generatorESPHighlightEnabled then return end
+        
+        local progress = generator:GetAttribute("RepairProgress") or 0
+        progress = math.max(0, math.min(100, progress))
+        
+        -- Remove ESP when generator reaches 100% or is very close (99.5%+)
+        if progress >= 99.5 then
+            removeGeneratorESPHighlight(generator)
+            return
+        end
+        
+        local red = math.floor(255 * (1 - progress / 100))
+        local green = math.floor(255 * (progress / 100))
+        local color = Color3.fromRGB(red, green, 0)
+        
+        if generatorESPHighlights[generator] and generatorESPHighlights[generator].highlight then
+            generatorESPHighlights[generator].highlight.FillColor = color
+        end
+        
+        if generatorESPHighlights[generator] and generatorESPHighlights[generator].textLabel then
+            -- Calculate progress rate and ETA
+            local tracking = generatorProgressTracking[generator]
+            if tracking then
+                local currentTime = tick()
+                local timeDiff = currentTime - tracking.lastTime
+                local progressDiff = progress - tracking.lastProgress
+                
+                if timeDiff > 0.5 and progressDiff > 0 then
+                    tracking.progressRate = progressDiff / timeDiff
+                    tracking.lastProgress = progress
+                    tracking.lastTime = currentTime
+                end
+                
+                local displayText = string.format("Generator\n%.1f%%", progress)
+                
+                -- Show ETA only if generator is actively progressing
+                if tracking.progressRate > 0.01 and progress < 100 then
+                    local remainingProgress = 100 - progress
+                    local etaSeconds = remainingProgress / tracking.progressRate
+                    
+                    if etaSeconds < 60 then
+                        displayText = displayText .. string.format("\n~%ds", math.ceil(etaSeconds))
+                    else
+                        local minutes = math.floor(etaSeconds / 60)
+                        local seconds = math.ceil(etaSeconds % 60)
+                        displayText = displayText .. string.format("\n~%dm %ds", minutes, seconds)
+                    end
+                end
+                
+                generatorESPHighlights[generator].textLabel.Text = displayText
                 generatorESPHighlights[generator].textLabel.TextColor3 = color
             end
-            
-            task.wait(0.1) -- Update every 0.1 seconds for smooth color transition
         end
     end)
+    
+    -- Store connection for cleanup
+    generatorESPHighlights[generator].attributeConnection = attributeConnection
+    
+    -- Trigger initial update
+    if generator:GetAttribute("RepairProgress") then
+        local progress = generator:GetAttribute("RepairProgress") or 0
+        progress = math.max(0, math.min(100, progress))
+        
+        -- Don't create ESP if already at 100%
+        if progress >= 100 then
+            removeGeneratorESPHighlight(generator)
+            return
+        end
+        
+        local red = math.floor(255 * (1 - progress / 100))
+        local green = math.floor(255 * (progress / 100))
+        local color = Color3.fromRGB(red, green, 0)
+        
+        if generatorESPHighlights[generator].highlight then
+            generatorESPHighlights[generator].highlight.FillColor = color
+        end
+        
+        if generatorESPHighlights[generator].textLabel then
+            generatorESPHighlights[generator].textLabel.Text = string.format("Generator\n%.1f%%", progress)
+            generatorESPHighlights[generator].textLabel.TextColor3 = color
+        end
+    end
 end
 
 local function removeGeneratorESPHighlight(generator)
     if generatorESPHighlights[generator] then
+        if generatorESPHighlights[generator].attributeConnection then
+            generatorESPHighlights[generator].attributeConnection:Disconnect()
+        end
         if generatorESPHighlights[generator].highlight then
             generatorESPHighlights[generator].highlight:Destroy()
+        end
+        if generatorESPHighlights[generator].attachmentPart then
+            generatorESPHighlights[generator].attachmentPart:Destroy()
         end
         if generatorESPHighlights[generator].billboard then
             generatorESPHighlights[generator].billboard:Destroy()
         end
         generatorESPHighlights[generator] = nil
+    end
+    
+    -- Clean up progress tracking
+    if generatorProgressTracking[generator] then
+        generatorProgressTracking[generator] = nil
     end
 end
 
@@ -223,328 +295,12 @@ local function disableGeneratorESPHighlight()
     end
 end
 
--- ═══════════════════════════════════════════════════════════════════════════
--- PUMPKIN ESP FUNCTIONS
--- ═══════════════════════════════════════════════════════════════════════════
-
-local function getPumpkins()
-    local pumpkins = {}
-    local map = Workspace:FindFirstChild("Map")
-    
-    if map then
-        local pumpkinsFolder = map:FindFirstChild("Pumpkins")
-        if pumpkinsFolder then
-            for _, child in ipairs(pumpkinsFolder:GetChildren()) do
-                if child:IsA("BasePart") or child:IsA("Model") then
-                    table.insert(pumpkins, child)
-                end
-            end
-        end
-    end
-    
-    return pumpkins
-end
-
-local function createPumpkinESPHighlight(pumpkin)
-    if pumpkinESPHighlights[pumpkin] then return end
-    
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "Pumpkin_ESP_Highlight"
-    highlight.FillColor = Color3.fromRGB(255, 140, 0)
-    highlight.OutlineColor = Color3.fromRGB(255, 69, 0)
-    highlight.FillTransparency = 0.7
-    highlight.OutlineTransparency = 1
-    highlight.Parent = pumpkin
-    
-    pumpkinESPHighlights[pumpkin] = highlight
-end
-
-local function removePumpkinESPHighlight(pumpkin)
-    if pumpkinESPHighlights[pumpkin] then
-        pumpkinESPHighlights[pumpkin]:Destroy()
-        pumpkinESPHighlights[pumpkin] = nil
-    end
-end
-
-local function enablePumpkinESPHighlight()
-    local pumpkins = getPumpkins()
-    for _, pumpkin in ipairs(pumpkins) do
-        createPumpkinESPHighlight(pumpkin)
-    end
-end
-
-local function disablePumpkinESPHighlight()
-    for pumpkin, _ in pairs(pumpkinESPHighlights) do
-        removePumpkinESPHighlight(pumpkin)
-    end
-end
-
--- ═══════════════════════════════════════════════════════════════════════════
--- LEVER ESP FUNCTIONS
--- ═══════════════════════════════════════════════════════════════════════════
-
-local function getLever()
-    local map = Workspace:FindFirstChild("Map")
-    if not map then return nil end
-    
-    -- Search recursively through all descendants to find ExitLever
-    for _, descendant in ipairs(map:GetDescendants()) do
-        if descendant.Name == "ExitLever" then
-            local main = descendant:FindFirstChild("Main")
-            if main then
-                return main
-            end
-        end
-    end
-    
-    return nil
-end
-
-local function createLeverESP(lever)
-    if leverESPHighlights[lever] then return end
-    
-    -- Create Highlight
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "Lever_ESP_Highlight"
-    highlight.FillColor = Color3.fromRGB(255, 0, 0) -- Start with red
-    highlight.OutlineColor = Color3.fromRGB(255, 165, 0)
-    highlight.FillTransparency = 0.7
-    highlight.OutlineTransparency = 1
-    highlight.Parent = lever
-    
-    -- Create Billboard for Progress Display
-    local billboardGui = Instance.new("BillboardGui")
-    billboardGui.Name = "LeverProgressESP"
-    billboardGui.Adornee = lever
-    billboardGui.Size = UDim2.new(0, 120, 0, 50)
-    billboardGui.StudsOffset = Vector3.new(0, 4, 0)
-    billboardGui.AlwaysOnTop = false
-    billboardGui.Parent = lever
-    
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(1, 0, 1, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.Text = "Exit Lever\n0%"
-    textLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
-    textLabel.TextSize = 16
-    textLabel.Font = Enum.Font.Gotham
-    textLabel.TextStrokeTransparency = 0.3
-    textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    textLabel.Parent = billboardGui
-    
-    leverESPHighlights[lever] = {
-        highlight = highlight,
-        billboard = billboardGui,
-        textLabel = textLabel
-    }
-    
-    -- Update progress loop
-    task.spawn(function()
-        while leverESPHighlights[lever] and leverESPEnabled do
-            local progress = lever:GetAttribute("ActivationProgress") or 0
-            progress = math.clamp(progress, 0, 100)
-            
-            -- Calculate color gradient from red to green
-            local red = math.floor(255 * (1 - progress / 100))
-            local green = math.floor(255 * (progress / 100))
-            local color = Color3.fromRGB(red, green, 0)
-            
-            -- Update highlight color
-            if leverESPHighlights[lever] and leverESPHighlights[lever].highlight then
-                leverESPHighlights[lever].highlight.FillColor = color
-            end
-            
-            -- Update text label
-            if leverESPHighlights[lever] and leverESPHighlights[lever].textLabel then
-                leverESPHighlights[lever].textLabel.Text = string.format("Exit Lever\n%.1f%%", progress)
-                leverESPHighlights[lever].textLabel.TextColor3 = color
-            end
-            
-            task.wait(0.1) -- Update every 0.1 seconds for smooth color transition
-        end
-    end)
-end
-
-local function disableGeneratorESPHighlight()
-    for generator, _ in pairs(generatorESPHighlights) do
-        removeGeneratorESPHighlight(generator)
-    end
-end
-
-<<<<<<< HEAD
--- ═══════════════════════════════════════════════════════════════════════════
--- PUMPKIN ESP FUNCTIONS
--- ═══════════════════════════════════════════════════════════════════════════
-
-local function getPumpkins()
-    local pumpkins = {}
-    local map = Workspace:FindFirstChild("Map")
-    
-    if map then
-        local pumpkinsFolder = map:FindFirstChild("Pumpkins")
-        if pumpkinsFolder then
-            for _, child in ipairs(pumpkinsFolder:GetChildren()) do
-                if child:IsA("BasePart") or child:IsA("Model") then
-                    table.insert(pumpkins, child)
-                end
-            end
-        end
-    end
-    
-    return pumpkins
-end
-
-local function createPumpkinESPHighlight(pumpkin)
-    if pumpkinESPHighlights[pumpkin] then return end
-    
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "Pumpkin_ESP_Highlight"
-    highlight.FillColor = Color3.fromRGB(255, 140, 0)
-    highlight.OutlineColor = Color3.fromRGB(255, 69, 0)
-    highlight.FillTransparency = 0.7
-    highlight.OutlineTransparency = 1
-    highlight.Parent = pumpkin
-    
-    pumpkinESPHighlights[pumpkin] = highlight
-end
-
-local function removePumpkinESPHighlight(pumpkin)
-    if pumpkinESPHighlights[pumpkin] then
-        pumpkinESPHighlights[pumpkin]:Destroy()
-        pumpkinESPHighlights[pumpkin] = nil
-    end
-end
-
-local function enablePumpkinESPHighlight()
-    local pumpkins = getPumpkins()
-    for _, pumpkin in ipairs(pumpkins) do
-        createPumpkinESPHighlight(pumpkin)
-    end
-end
-
-local function disablePumpkinESPHighlight()
-    for pumpkin, _ in pairs(pumpkinESPHighlights) do
-        removePumpkinESPHighlight(pumpkin)
-    end
-end
-
--- ═══════════════════════════════════════════════════════════════════════════
--- LEVER ESP FUNCTIONS
--- ═══════════════════════════════════════════════════════════════════════════
-
-local function getLever()
-    local map = Workspace:FindFirstChild("Map")
-    if not map then return nil end
-    
-    -- Search recursively through all descendants to find ExitLever
-    for _, descendant in ipairs(map:GetDescendants()) do
-        if descendant.Name == "ExitLever" then
-            local main = descendant:FindFirstChild("Main")
-            if main then
-                return main
-            end
-        end
-    end
-    
-    return nil
-end
-
-local function createLeverESP(lever)
-    if leverESPHighlights[lever] then return end
-    
-    -- Create Highlight
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "Lever_ESP_Highlight"
-    highlight.FillColor = Color3.fromRGB(255, 0, 0) -- Start with red
-    highlight.OutlineColor = Color3.fromRGB(255, 165, 0)
-    highlight.FillTransparency = 0.7
-    highlight.OutlineTransparency = 1
-    highlight.Parent = lever
-    
-    -- Create Billboard for Progress Display
-    local billboardGui = Instance.new("BillboardGui")
-    billboardGui.Name = "LeverProgressESP"
-    billboardGui.Adornee = lever
-    billboardGui.Size = UDim2.new(0, 120, 0, 50)
-    billboardGui.StudsOffset = Vector3.new(0, 4, 0)
-    billboardGui.AlwaysOnTop = false
-    billboardGui.Parent = lever
-    
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(1, 0, 1, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.Text = "Exit Lever\n0%"
-    textLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
-    textLabel.TextSize = 16
-    textLabel.Font = Enum.Font.Gotham
-    textLabel.TextStrokeTransparency = 0.3
-    textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    textLabel.Parent = billboardGui
-    
-    leverESPHighlights[lever] = {
-        highlight = highlight,
-        billboard = billboardGui,
-        textLabel = textLabel
-    }
-    
-    -- Update progress loop
-    task.spawn(function()
-        while leverESPHighlights[lever] and leverESPEnabled do
-            local progress = lever:GetAttribute("ActivationProgress") or 0
-            progress = math.clamp(progress, 0, 100)
-            
-            -- Calculate color gradient from red to green
-            local red = math.floor(255 * (1 - progress / 100))
-            local green = math.floor(255 * (progress / 100))
-            local color = Color3.fromRGB(red, green, 0)
-            
-            -- Update highlight color
-            if leverESPHighlights[lever] and leverESPHighlights[lever].highlight then
-                leverESPHighlights[lever].highlight.FillColor = color
-            end
-            
-            -- Update text label
-            if leverESPHighlights[lever] and leverESPHighlights[lever].textLabel then
-                leverESPHighlights[lever].textLabel.Text = string.format("Exit Lever\n%.1f%%", progress)
-                leverESPHighlights[lever].textLabel.TextColor3 = color
-            end
-            
-            task.wait(0.1) -- Update every 0.1 seconds for smooth color transition
-        end
-    end)
-end
-
-local function removeLeverESP(lever)
-    if leverESPHighlights[lever] then
-        if leverESPHighlights[lever].highlight then
-            leverESPHighlights[lever].highlight:Destroy()
-        end
-        if leverESPHighlights[lever].billboard then
-            leverESPHighlights[lever].billboard:Destroy()
-        end
-        leverESPHighlights[lever] = nil
-    end
-end
-
-local function enableLeverESP()
-    local lever = getLever()
-    if lever then
-        createLeverESP(lever)
-    end
-end
-
-local function disableLeverESP()
-    for lever, _ in pairs(leverESPHighlights) do
-        removeLeverESP(lever)
-    end
-=======
 -- ===========================================
 -- Player ESP Functions
 -- ===========================================
 local function isSpectator(player)
     if not player then return false end
     return player.Team and player.Team.Name == "Spectator"
->>>>>>> 22d7393f71d37e4552e5bf73ed534cabf1fa6288
 end
 
 local function isKiller(player)
@@ -675,7 +431,7 @@ local function createPlayerESP(player, isKillerPlayer)
         billboardGui = Instance.new("BillboardGui")
         billboardGui.Name = "PlayerNameESP"
         billboardGui.Adornee = attachmentPart
-        billboardGui.Size = UDim2.new(0, 120, 0, 40)
+        billboardGui.Size = UDim2.new(0, 200, 0, 90)
         billboardGui.StudsOffset = Vector3.new(0, 0, 0)
         billboardGui.AlwaysOnTop = true
         billboardGui.Parent = attachmentPart
@@ -702,11 +458,6 @@ local function createPlayerESP(player, isKillerPlayer)
         textLabel.TextStrokeTransparency = 0.5
         textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
         textLabel.Parent = billboardGui
-
-        local textSizeConstraint = Instance.new("UITextSizeConstraint")
-        textSizeConstraint.MaxTextSize = 7
-        textSizeConstraint.MinTextSize = 7
-        textSizeConstraint.Parent = textLabel
     end
     
     playerESPData[player] = {
@@ -871,21 +622,8 @@ local function getHumanoid()
     end
     return nil
 end
--- ===========================================
--- Speed Boost Functions (WALKSPEED-BASED)
--- ===========================================
-local function getHumanoid()
-    local player = Players.LocalPlayer
-    if player and player.Character then
-        return player.Character:FindFirstChildOfClass("Humanoid")
-    end
-    return nil
-end
 
 local function applySpeedBoost()
-    local humanoid = getHumanoid()
-    if humanoid then
-        humanoid.WalkSpeed = currentSpeedBoost
     local humanoid = getHumanoid()
     if humanoid then
         humanoid.WalkSpeed = currentSpeedBoost
@@ -901,40 +639,13 @@ local function enableSpeedBoost()
     end
     
     -- ✅ Apply on character respawn
-    -- ✅ Apply on character respawn
     speedBoostConnection = Players.LocalPlayer.CharacterAdded:Connect(function(character)
         if speedBoostEnabled then
-            task.wait(0.5)
             task.wait(0.5)
             applySpeedBoost()
         end
     end)
     
-    -- ✅ Monitor WalkSpeed changes to reapply if reset
-    local function monitorWalkSpeed()
-        local humanoid = getHumanoid()
-        if humanoid then
-            local conn = humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
-                if speedBoostEnabled then
-                    local currentValue = humanoid.WalkSpeed
-                    if currentValue ~= currentSpeedBoost then
-                        task.wait(0.1)
-                        applySpeedBoost()
-                    end
-                end
-            end)
-            addConnection("speedboost", conn)
-        end
-    end
-    
-    monitorWalkSpeed()
-    
-    -- Monitor for new character
-    local charConn = Players.LocalPlayer.CharacterAdded:Connect(function()
-        task.wait(0.5)
-        monitorWalkSpeed()
-    end)
-    addConnection("speedboost", charConn)
     -- ✅ Monitor WalkSpeed changes to reapply if reset
     local function monitorWalkSpeed()
         local humanoid = getHumanoid()
@@ -978,10 +689,9 @@ local function disableSpeedBoost()
     end
 end
 
--- ═══════════════════════════════════════════════════════════════════════════
--- AUTO PERFECT GENERATOR FUNCTIONS
--- ═══════════════════════════════════════════════════════════════════════════
-
+-- ===========================================
+-- Auto Perfect Skill Check Functions
+-- ===========================================
 local lastPressTime = 0
 local pressedThisRound = false
 local lastGoalRotationTracked = 0
@@ -1799,8 +1509,7 @@ SurvivorTab:Section({
 })
 
 SurvivorTab:Toggle({
-    Title = "Enable Speed Boost (Killer & Survivor)",
-    Title = "Enable Speed Boost (Killer & Survivor)",
+    Title = "Enable Speed Boost",
     Desc = "Boost your movement speed",
     Icon = "zap",
     Value = false,
@@ -1814,16 +1523,11 @@ SurvivorTab:Toggle({
 })
 
 SurvivorTab:Slider({
-    Title = "Speed Boost Value (Default 16)",
-    Desc = "Set speed boost value",
-    Step = 1,
-    Title = "Speed Boost Value (Default 16)",
-    Desc = "Set speed boost value",
-    Step = 1,
+    Title = "Speed Multiplier",
+    Desc = "Set speed boost multiplier",
+    Step = 0.01,
     Value = {
         Min = 1,
-        Max = 100,
-        Default = 16,
         Max = 100,
         Default = 16,
     },
