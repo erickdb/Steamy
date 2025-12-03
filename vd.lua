@@ -1,12 +1,5 @@
--- ═══════════════════════════════════════════════════════════════════════════
--- STEAMY ROBLOX - VD EDITION
--- Complete ESP & Script Executor
--- ═══════════════════════════════════════════════════════════════════════════
-
--- Load WindUI
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
---// Services
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -14,76 +7,93 @@ local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- ═══════════════════════════════════════════════════════════════════════════
--- GLOBAL STATE
--- ═══════════════════════════════════════════════════════════════════════════
-
---// Generator ESP State
 local generatorESPHighlightEnabled = false
 local generatorESPHighlights = {}
+local generatorProgressTracking = {} -- Track progress over time for ETA calculation
 
---// Pumpkin ESP State
-local pumpkinESPHighlightEnabled = false
-local pumpkinESPHighlights = {}
-
---// Lever ESP State
-local leverESPEnabled = false
-local leverESPHighlights = {}
-
---// Player ESP State
 local survivorESPEnabled = false
 local killerESPEnabled = false
-local survivorItemESPEnabled = false
+local spectatorInfoEnabled = false
 local playerESPData = {}
 
--- // Crosshair state
 local crosshairEnabled = false
 local crosshairUI = nil
 
---// Long Range Heal State
 local longRangeHealEnabled = false
 local healTarget = nil
 local healTargetESP = nil
 local healKeybind = Enum.KeyCode.F
 
---// Speed Boost State
 local speedBoostEnabled = false
 local currentSpeedBoost = 16
 
---// Auto Perfect Generator State
 local autoPerfectEnabled = false
 local autoPerfectConnection = nil
 
---// Debug Overlay State
-local debugOverlayEnabled = false
-local debugOverlayUI = nil
-local lastLineRotation = 0
-local lastGoalRotation = 0
-local lastCircleRotation = 0
-local lastShadowRotation = 0
-local lastSpaceRotation = 0
-local lastDifference = 0
-local lastStatus = "Waiting..."
-local lastStatusColor = Color3.fromRGB(150, 150, 150)
+local disableSkillCheckEnabled = false
+local skillCheckConnections = {}
 
---// UI References
+local aimbotEnabled = false
+local aimbotConnection = nil
+local isRightClickHeld = false
+
 local generatorHighlightToggle
-local pumpkinHighlightToggle
-local leverESPToggle
 local survivorESPToggle
 local killerESPToggle
-local survivorItemESPToggle
 
--- ═══════════════════════════════════════════════════════════════════════════
--- GENERATOR ESP FUNCTIONS
--- ═══════════════════════════════════════════════════════════════════════════
+-- Connection storage for cleanup
+local activeConnections = {}
 
+-- ===========================================
+-- ESP Configuration Variables
+-- ===========================================
+local ESPConfig = {
+    -- Generator ESP
+    generatorFillTransparency = 0.75,
+    generatorOutlineTransparency = 1,
+    generatorTextSize = 7,
+    
+    -- Player ESP
+    playerFillTransparency = 0.75,
+    playerOutlineTransparency = 1,
+    playerTextSize = 7,
+    
+    -- Colors
+    survivorColor = Color3.fromRGB(0, 255, 0),
+    killerColor = Color3.fromRGB(255, 0, 0),
+    spectatorColor = Color3.fromRGB(255, 255, 255),
+    healTargetColor = Color3.fromRGB(0, 255, 255),
+}
+
+-- ===========================================
+-- Helper: Add Connection for Cleanup
+-- ===========================================
+local function addConnection(name, connection)
+    if not activeConnections[name] then
+        activeConnections[name] = {}
+    end
+    table.insert(activeConnections[name], connection)
+end
+
+local function disconnectAll(name)
+    if activeConnections[name] then
+        for _, conn in ipairs(activeConnections[name]) do
+            if conn and conn.Connected then
+                conn:Disconnect()
+            end
+        end
+        activeConnections[name] = {}
+    end
+end
+
+-- ===========================================
+-- Generator ESP Functions (EVENT-BASED)
+-- ===========================================
 local function getGenerators()
     local generators = {}
     local map = Workspace:FindFirstChild("Map")
     
     if map then
-        -- Search recursively through all descendants
         for _, descendant in ipairs(map:GetDescendants()) do
             if descendant:IsA("Model") and descendant.Name == "Generator" then
                 table.insert(generators, descendant)
@@ -97,42 +107,66 @@ end
 local function createGeneratorESPHighlight(generator)
     if generatorESPHighlights[generator] then return end
     
-    -- Create Highlight
     local highlight = Instance.new("Highlight")
     highlight.Name = "Generator_ESP_Highlight"
-    highlight.FillColor = Color3.fromRGB(255, 0, 0) -- Start with red
+    highlight.FillColor = Color3.fromRGB(255, 0, 0)
     highlight.OutlineColor = Color3.fromRGB(255, 165, 0)
     highlight.FillTransparency = 0.7
     highlight.OutlineTransparency = 1
     highlight.Parent = generator
     
-    -- Create Billboard for Progress Display
     local primaryPart = generator.PrimaryPart or generator:FindFirstChildWhichIsA("BasePart")
+    local attachmentPart = nil
     local billboardGui = nil
     
     if primaryPart then
+        local size = primaryPart.Size
+        local topOffset = size.Y / 2 + 2
+        
+        attachmentPart = Instance.new("Part")
+        attachmentPart.Name = "TextAttachment"
+        attachmentPart.Transparency = 1
+        attachmentPart.CanCollide = false
+        attachmentPart.Anchored = false
+        attachmentPart.Size = Vector3.new(0.1, 0.1, 0.1)
+        attachmentPart.CFrame = primaryPart.CFrame * CFrame.new(0, topOffset, 0)
+        attachmentPart.Parent = generator
+        
+        local weld = Instance.new("WeldConstraint")
+        weld.Part0 = primaryPart
+        weld.Part1 = attachmentPart
+        weld.Parent = attachmentPart
+        
         billboardGui = Instance.new("BillboardGui")
         billboardGui.Name = "GeneratorProgressESP"
-        billboardGui.Adornee = primaryPart
-        billboardGui.Size = UDim2.new(0, 120, 0, 50)
-        billboardGui.StudsOffset = Vector3.new(0, 4, 0)
-        billboardGui.AlwaysOnTop = false
-        billboardGui.Parent = primaryPart
+        billboardGui.Adornee = attachmentPart
+        billboardGui.Size = UDim2.new(0, 120, 0, 40)
+        billboardGui.StudsOffset = Vector3.new(0, 0, 0)
+        billboardGui.AlwaysOnTop = true
+        billboardGui.Parent = attachmentPart
         
         local textLabel = Instance.new("TextLabel")
         textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
+        textLabel.AnchorPoint = Vector2.new(0.5, 0.5)
         textLabel.BackgroundTransparency = 1
         textLabel.Text = "Generator\n0%"
         textLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
-        textLabel.TextSize = 16
+        textLabel.TextSize = ESPConfig.generatorTextSize
         textLabel.Font = Enum.Font.Gotham
-        textLabel.TextStrokeTransparency = 0.3
+        textLabel.TextStrokeTransparency = 0.5
         textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
         textLabel.Parent = billboardGui
+
+        local textSizeConstraint = Instance.new("UITextSizeConstraint")
+        textSizeConstraint.MaxTextSize = 7
+        textSizeConstraint.MinTextSize = 7
+        textSizeConstraint.Parent = textLabel
     end
     
     generatorESPHighlights[generator] = {
         highlight = highlight,
+        attachmentPart = attachmentPart,
         billboard = billboardGui,
         textLabel = billboardGui and billboardGui:FindFirstChildOfClass("TextLabel") or nil
     }
@@ -331,34 +365,19 @@ local function createLeverESP(lever)
     end)
 end
 
-local function removeLeverESP(lever)
-    if leverESPHighlights[lever] then
-        if leverESPHighlights[lever].highlight then
-            leverESPHighlights[lever].highlight:Destroy()
-        end
-        if leverESPHighlights[lever].billboard then
-            leverESPHighlights[lever].billboard:Destroy()
-        end
-        leverESPHighlights[lever] = nil
+local function disableGeneratorESPHighlight()
+    for generator, _ in pairs(generatorESPHighlights) do
+        removeGeneratorESPHighlight(generator)
     end
 end
 
-local function enableLeverESP()
-    local lever = getLever()
-    if lever then
-        createLeverESP(lever)
-    end
+-- ===========================================
+-- Player ESP Functions
+-- ===========================================
+local function isSpectator(player)
+    if not player then return false end
+    return player.Team and player.Team.Name == "Spectator"
 end
-
-local function disableLeverESP()
-    for lever, _ in pairs(leverESPHighlights) do
-        removeLeverESP(lever)
-    end
-end
-
--- ═══════════════════════════════════════════════════════════════════════════
--- PLAYER ESP FUNCTIONS (SURVIVOR & KILLER)
--- ═══════════════════════════════════════════════════════════════════════════
 
 local function isKiller(player)
     if not player then return false end
@@ -411,34 +430,53 @@ local function createPlayerESP(player, isKillerPlayer)
             if equippedItem and equippedItem ~= "" then
                 itemText = "\n[" .. equippedItem .. "]"
             end
+            
+            displayText = line1
+            if line2 ~= "" then
+                displayText = displayText .. "\n" .. line2
+            end
         end
+        
+        billboardGui = Instance.new("BillboardGui")
+        billboardGui.Name = "PlayerNameESP"
+        billboardGui.Adornee = attachmentPart
+        billboardGui.Size = UDim2.new(0, 120, 0, 40)
+        billboardGui.StudsOffset = Vector3.new(0, 0, 0)
+        billboardGui.AlwaysOnTop = true
+        billboardGui.Parent = attachmentPart
+        
+        textLabel = Instance.new("TextLabel")
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
+        textLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+        textLabel.BackgroundTransparency = 1
+        textLabel.Text = displayText
+        
+        if isTargetSpectator then
+            textLabel.TextColor3 = ESPConfig.spectatorColor
+        else
+            if isKillerPlayer then
+                textLabel.TextColor3 = ESPConfig.killerColor
+            else
+                textLabel.TextColor3 = ESPConfig.survivorColor
+            end
+        end
+        
+        textLabel.TextSize = ESPConfig.playerTextSize
+        textLabel.Font = Enum.Font.Gotham
+        textLabel.TextStrokeTransparency = 0.5
+        textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+        textLabel.Parent = billboardGui
+
+        local textSizeConstraint = Instance.new("UITextSizeConstraint")
+        textSizeConstraint.MaxTextSize = 7
+        textSizeConstraint.MinTextSize = 7
+        textSizeConstraint.Parent = textLabel
     end
-    
-    -- Create Name ESP
-    local billboardGui = Instance.new("BillboardGui")
-    billboardGui.Name = "PlayerNameESP"
-    billboardGui.Adornee = humanoidRootPart
-    billboardGui.Size = UDim2.new(0, 150, 0, 60)
-    billboardGui.StudsOffset = Vector3.new(0, 3, 0)
-    billboardGui.AlwaysOnTop = true
-    billboardGui.Parent = humanoidRootPart
-    
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(1, 0, 1, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.Text = displayName .. itemText
-    if isKillerPlayer then
-        textLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
-    else
-        textLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-    end
-    textLabel.TextSize = 14
-    textLabel.Font = Enum.Font.Gotham
-    textLabel.TextStrokeTransparency = 0.5
-    textLabel.Parent = billboardGui
     
     playerESPData[player] = {
         highlight = highlight,
+        attachmentPart = attachmentPart,
         billboard = billboardGui,
         textLabel = textLabel,
         isKiller = isKillerPlayer
@@ -450,6 +488,9 @@ function removePlayerESP(player)
         if playerESPData[player].highlight then
             playerESPData[player].highlight:Destroy()
         end
+        if playerESPData[player].attachmentPart then
+            playerESPData[player].attachmentPart:Destroy()
+        end
         if playerESPData[player].billboard then
             playerESPData[player].billboard:Destroy()
         end
@@ -457,14 +498,11 @@ function removePlayerESP(player)
     end
 end
 
-local function updateSurvivorItemESP()
-    -- Update all survivor ESP to show/hide items
-    for player, data in pairs(playerESPData) do
-        if not data.isKiller and player.Character then
-            -- Recreate ESP to update item display
-            if survivorESPEnabled then
-                createPlayerESP(player, false)
-            end
+local function updateSpectatorInfo()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= Players.LocalPlayer and player.Character then
+            local isKillerPlayer = isKiller(player)
+            createPlayerESP(player, isKillerPlayer)
         end
     end
 end
@@ -473,11 +511,22 @@ local function updatePlayerESP()
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= Players.LocalPlayer then
             local isKillerPlayer = isKiller(player)
+            local isTargetSpectator = isSpectator(player)
             
-            if isKillerPlayer and killerESPEnabled then
-                createPlayerESP(player, true)
-            elseif not isKillerPlayer and survivorESPEnabled then
-                createPlayerESP(player, false)
+            local shouldShowESP = false
+            
+            if isTargetSpectator and spectatorInfoEnabled then
+                shouldShowESP = true
+            end
+            
+            if not isTargetSpectator then
+                if (isKillerPlayer and killerESPEnabled) or (not isKillerPlayer and survivorESPEnabled) then
+                    shouldShowESP = true
+                end
+            end
+            
+            if shouldShowESP then
+                createPlayerESP(player, isKillerPlayer)
             else
                 removePlayerESP(player)
             end
@@ -491,10 +540,9 @@ local function disableAllPlayerESP()
     end
 end
 
--- ═══════════════════════════════════════════════════════════════════════════
--- RESPONSIVE CROSSHAIR FUNCTIONS
--- ═══════════════════════════════════════════════════════════════════════════
-
+-- ===========================================
+-- Crosshair Functions
+-- ===========================================
 local function createCrosshair()
     if crosshairUI then
         crosshairUI:Destroy()
@@ -504,7 +552,6 @@ local function createCrosshair()
     screenGui.Name = "CrosshairUI"
     screenGui.ResetOnSpawn = false
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    screenGui.IgnoreGuiInset = true -- Penting untuk mobile agar tidak terpengaruh notch/safe area
     
     local success = pcall(function()
         screenGui.Parent = CoreGui
@@ -513,95 +560,43 @@ local function createCrosshair()
         screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
     end
     
-    -- Deteksi platform
-    local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-    local isTablet = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled and workspace.CurrentCamera.ViewportSize.X > 600
-    local isConsole = UserInputService.GamepadEnabled and not UserInputService.KeyboardEnabled
-    
-    -- Ukuran responsif berdasarkan platform
-    local crosshairSize = 40
-    local lineLength = 20
-    local lineThickness = 2
-    local centerDotSize = 4
-    
-    if isMobile and not isTablet then
-        -- Mobile phone: crosshair lebih besar
-        crosshairSize = 60
-        lineLength = 30
-        lineThickness = 3
-        centerDotSize = 6
-    elseif isTablet then
-        -- Tablet: ukuran sedang
-        crosshairSize = 50
-        lineLength = 25
-        lineThickness = 2.5
-        centerDotSize = 5
-    elseif isConsole then
-        -- Console: ukuran standar dengan garis lebih tebal
-        crosshairSize = 45
-        lineLength = 22
-        lineThickness = 2.5
-        centerDotSize = 5
-    end
-    
-    -- Main Crosshair Frame
     local crosshairFrame = Instance.new("Frame")
     crosshairFrame.Name = "CrosshairFrame"
-    crosshairFrame.Size = UDim2.new(0, crosshairSize, 0, crosshairSize)
-    crosshairFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-    crosshairFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    crosshairFrame.Size = UDim2.new(0, 40, 0, 40)
+    crosshairFrame.Position = UDim2.new(0.5, -20, 0.5, -20)
     crosshairFrame.BackgroundTransparency = 1
     crosshairFrame.Parent = screenGui
     
-    -- UIAspectRatioConstraint untuk menjaga bentuk square
-    local aspectRatio = Instance.new("UIAspectRatioConstraint")
-    aspectRatio.AspectRatio = 1
-    aspectRatio.Parent = crosshairFrame
-    
-    -- UISizeConstraint untuk mencegah crosshair terlalu besar/kecil
-    local sizeConstraint = Instance.new("UISizeConstraint")
-    sizeConstraint.MinSize = Vector2.new(30, 30)
-    sizeConstraint.MaxSize = Vector2.new(100, 100)
-    sizeConstraint.Parent = crosshairFrame
-    
-    -- Horizontal Line
     local horizontalLine = Instance.new("Frame")
     horizontalLine.Name = "HorizontalLine"
-    horizontalLine.Size = UDim2.new(0.5, 0, 0, lineThickness)
-    horizontalLine.AnchorPoint = Vector2.new(0.5, 0.5)
-    horizontalLine.Position = UDim2.new(0.5, 0, 0.5, 0)
+    horizontalLine.Size = UDim2.new(0, 20, 0, 2)
+    horizontalLine.Position = UDim2.new(0.5, -10, 0.5, -1)
     horizontalLine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     horizontalLine.BorderSizePixel = 0
     horizontalLine.Parent = crosshairFrame
     
-    -- Horizontal Line Stroke
     local horizontalStroke = Instance.new("UIStroke")
     horizontalStroke.Color = Color3.fromRGB(0, 0, 0)
     horizontalStroke.Thickness = 1
     horizontalStroke.Parent = horizontalLine
     
-    -- Vertical Line
     local verticalLine = Instance.new("Frame")
     verticalLine.Name = "VerticalLine"
-    verticalLine.Size = UDim2.new(0, lineThickness, 0.5, 0)
-    verticalLine.AnchorPoint = Vector2.new(0.5, 0.5)
-    verticalLine.Position = UDim2.new(0.5, 0, 0.5, 0)
+    verticalLine.Size = UDim2.new(0, 2, 0, 20)
+    verticalLine.Position = UDim2.new(0.5, -1, 0.5, -10)
     verticalLine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     verticalLine.BorderSizePixel = 0
     verticalLine.Parent = crosshairFrame
     
-    -- Vertical Line Stroke
     local verticalStroke = Instance.new("UIStroke")
     verticalStroke.Color = Color3.fromRGB(0, 0, 0)
     verticalStroke.Thickness = 1
     verticalStroke.Parent = verticalLine
     
-    -- Center Dot
     local centerDot = Instance.new("Frame")
     centerDot.Name = "CenterDot"
-    centerDot.Size = UDim2.new(0.1, 0, 0.1, 0)
-    centerDot.AnchorPoint = Vector2.new(0.5, 0.5)
-    centerDot.Position = UDim2.new(0.5, 0, 0.5, 0)
+    centerDot.Size = UDim2.new(0, 4, 0, 4)
+    centerDot.Position = UDim2.new(0.5, -2, 0.5, -2)
     centerDot.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
     centerDot.BorderSizePixel = 0
     centerDot.Parent = crosshairFrame
@@ -614,65 +609,6 @@ local function createCrosshair()
     dotStroke.Color = Color3.fromRGB(0, 0, 0)
     dotStroke.Thickness = 1
     dotStroke.Parent = centerDot
-    
-    -- UIAspectRatioConstraint untuk center dot
-    local dotAspectRatio = Instance.new("UIAspectRatioConstraint")
-    dotAspectRatio.AspectRatio = 1
-    dotAspectRatio.Parent = centerDot
-    
-    -- Update crosshair saat viewport berubah (rotasi device, resize window)
-    local function updateCrosshairSize()
-        local viewportSize = workspace.CurrentCamera.ViewportSize
-        local isMobileNow = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-        local isTabletNow = isMobileNow and viewportSize.X > 600
-        local isConsoleNow = UserInputService.GamepadEnabled and not UserInputService.KeyboardEnabled
-        
-        -- Update ukuran berdasarkan platform dan orientasi
-        local newCrosshairSize = 40
-        local newLineLength = 20
-        local newLineThickness = 2
-        local newCenterDotSize = 4
-        
-        if isMobileNow and not isTabletNow then
-            -- Cek orientasi untuk mobile
-            if viewportSize.X > viewportSize.Y then
-                -- Landscape: ukuran sedang
-                newCrosshairSize = 50
-                newLineLength = 25
-                newLineThickness = 2.5
-                newCenterDotSize = 5
-            else
-                -- Portrait: ukuran besar
-                newCrosshairSize = 60
-                newLineLength = 30
-                newLineThickness = 3
-                newCenterDotSize = 6
-            end
-        elseif isTabletNow then
-            newCrosshairSize = 50
-            newLineLength = 25
-            newLineThickness = 2.5
-            newCenterDotSize = 5
-        elseif isConsoleNow then
-            newCrosshairSize = 45
-            newLineLength = 22
-            newLineThickness = 2.5
-            newCenterDotSize = 5
-        end
-        
-        -- Apply perubahan ukuran dengan smooth transition
-        crosshairFrame.Size = UDim2.new(0, newCrosshairSize, 0, newCrosshairSize)
-        horizontalLine.Size = UDim2.new(0, newLineLength, 0, newLineThickness)
-        verticalLine.Size = UDim2.new(0, newLineThickness, 0, newLineLength)
-        centerDot.Size = UDim2.new(0, newCenterDotSize, 0, newCenterDotSize)
-    end
-    
-    -- Monitor perubahan viewport
-    workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateCrosshairSize)
-    
-    -- Monitor perubahan input device (untuk kasus user menghubungkan/melepas controller)
-    UserInputService.GamepadConnected:Connect(updateCrosshairSize)
-    UserInputService.GamepadDisconnected:Connect(updateCrosshairSize)
     
     crosshairUI = screenGui
 end
@@ -700,8 +636,21 @@ local function getHumanoid()
     end
     return nil
 end
+-- ===========================================
+-- Speed Boost Functions (WALKSPEED-BASED)
+-- ===========================================
+local function getHumanoid()
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        return player.Character:FindFirstChildOfClass("Humanoid")
+    end
+    return nil
+end
 
 local function applySpeedBoost()
+    local humanoid = getHumanoid()
+    if humanoid then
+        humanoid.WalkSpeed = currentSpeedBoost
     local humanoid = getHumanoid()
     if humanoid then
         humanoid.WalkSpeed = currentSpeedBoost
@@ -717,13 +666,40 @@ local function enableSpeedBoost()
     end
     
     -- ✅ Apply on character respawn
+    -- ✅ Apply on character respawn
     speedBoostConnection = Players.LocalPlayer.CharacterAdded:Connect(function(character)
         if speedBoostEnabled then
+            task.wait(0.5)
             task.wait(0.5)
             applySpeedBoost()
         end
     end)
     
+    -- ✅ Monitor WalkSpeed changes to reapply if reset
+    local function monitorWalkSpeed()
+        local humanoid = getHumanoid()
+        if humanoid then
+            local conn = humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+                if speedBoostEnabled then
+                    local currentValue = humanoid.WalkSpeed
+                    if currentValue ~= currentSpeedBoost then
+                        task.wait(0.1)
+                        applySpeedBoost()
+                    end
+                end
+            end)
+            addConnection("speedboost", conn)
+        end
+    end
+    
+    monitorWalkSpeed()
+    
+    -- Monitor for new character
+    local charConn = Players.LocalPlayer.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        monitorWalkSpeed()
+    end)
+    addConnection("speedboost", charConn)
     -- ✅ Monitor WalkSpeed changes to reapply if reset
     local function monitorWalkSpeed()
         local humanoid = getHumanoid()
@@ -785,7 +761,6 @@ local function checkSkillCheck()
     
     local skillCheckGui = playerGui:FindFirstChild("SkillCheckPromptGui")
     if not skillCheckGui then 
-        -- Reset when skill check disappears
         pressedThisRound = false
         lastGoalRotationTracked = 0
         lastSkillCheckActive = false
@@ -808,13 +783,10 @@ local function checkSkillCheck()
         return 
     end
     
-    -- Get rotation values
     local lineRotation = line.Rotation
     local goalRotation = goal.Rotation
     
-    -- Don't press if Goal or Line is at 0 (skill check not started yet)
     if goalRotation == 0 or lineRotation == 0 then
-        -- Reset when skill check is not active
         if lastSkillCheckActive then
             pressedThisRound = false
             lastGoalRotationTracked = 0
@@ -823,20 +795,17 @@ local function checkSkillCheck()
         return
     end
     
-    -- Skill check is now active
     if not lastSkillCheckActive then
         lastSkillCheckActive = true
         pressedThisRound = false
         lastGoalRotationTracked = goalRotation
     end
     
-    -- Detect new skill check (goal rotation changed significantly)
     if math.abs(goalRotation - lastGoalRotationTracked) > 10 then
         pressedThisRound = false
         lastGoalRotationTracked = goalRotation
     end
     
-    -- Normalize rotation values (handle 360 degree wrap)
     local function normalizeRotation(rot)
         while rot < 0 do rot = rot + 360 end
         while rot >= 360 do rot = rot - 360 end
@@ -846,34 +815,48 @@ local function checkSkillCheck()
     lineRotation = normalizeRotation(lineRotation)
     goalRotation = normalizeRotation(goalRotation)
     
-    -- Calculate difference (considering rotation direction)
     local diff = lineRotation - goalRotation
     
-    -- Normalize difference to handle 360° wrap
     while diff > 180 do diff = diff - 360 end
     while diff < -180 do diff = diff + 360 end
     
-    -- Line is moving clockwise, so we need to press BEFORE it reaches the goal
-    -- Perfect zone: adjusted to be more accurate (reduced from 105° to 103°)
-    local offsetBefore = 103 -- Fine-tuned offset
-    local tolerance = 2 -- Tighter tolerance for more precision
+    local offsetMin = 103
+    local offsetMax = 115
     
-    -- Check if line is in the perfect zone
-    local inPerfectZone = (diff >= offsetBefore - tolerance and diff <= offsetBefore + tolerance)
-   
-    -- Only press if in perfect zone and haven't pressed this round
+    local inPerfectZone = (diff >= offsetMin and diff <= offsetMax)
+    
     if inPerfectZone and not pressedThisRound then
         local currentTime = tick()
-        -- Prevent double pressing (minimum 0.05 second between presses)
         if currentTime - lastPressTime >= 0.05 then
-            -- Add 0.02 second (20ms) delay before pressing
             task.wait(0.02)
             
-            -- Simulate space key press
+            -- Support both keyboard and mobile touch
             local virtualInputManager = game:GetService("VirtualInputManager")
+            
+            -- Send keyboard Space event (for PC)
             virtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
             task.wait(0.01)
             virtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+            
+            -- Also trigger touch event for mobile
+            pcall(function()
+                local screenGui = Players.LocalPlayer:FindFirstChild("PlayerGui")
+                if screenGui then
+                    local skillCheckGui = screenGui:FindFirstChild("SkillCheckPromptGui")
+                    if skillCheckGui then
+                        local check = skillCheckGui:FindFirstChild("Check")
+                        if check then
+                            -- Simulate touch tap at center of screen
+                            local viewportSize = workspace.CurrentCamera.ViewportSize
+                            local centerPos = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+                            
+                            virtualInputManager:SendTouchEvent(Enum.UserInputType.Touch, Enum.UserInputState.Begin, centerPos)
+                            task.wait(0.01)
+                            virtualInputManager:SendTouchEvent(Enum.UserInputType.Touch, Enum.UserInputState.End, centerPos)
+                        end
+                    end
+                end
+            end)
             
             lastPressTime = currentTime
             pressedThisRound = true
@@ -888,7 +871,6 @@ local function enableAutoPerfect()
         autoPerfectConnection:Disconnect()
     end
     
-    -- Monitor skill check continuously
     autoPerfectConnection = RunService.RenderStepped:Connect(function()
         if autoPerfectEnabled then
             pcall(checkSkillCheck)
@@ -905,345 +887,210 @@ local function disableAutoPerfect()
     end
 end
 
--- ═══════════════════════════════════════════════════════════════════════════
--- DEBUG OVERLAY FUNCTIONS
--- ═══════════════════════════════════════════════════════════════════════════
-
-local function createDebugOverlay()
-    if debugOverlayUI then
-        debugOverlayUI:Destroy()
-    end
+-- ===========================================
+-- Disable Skill Check Functions (EVENT-BASED)
+-- ===========================================
+local function setupSkillCheckDisabler(workspaceChar)
+    if not workspaceChar then return end
     
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "SkillCheckDebugOverlay"
-    screenGui.ResetOnSpawn = false
-    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    
-    local success = pcall(function()
-        screenGui.Parent = CoreGui
-    end)
-    if not success then
-        screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
-    end
-    
-    -- Main Frame
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Name = "DebugFrame"
-    mainFrame.Size = UDim2.new(0, 300, 0, 260)
-    mainFrame.Position = UDim2.new(0, 10, 0.5, -130)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    mainFrame.BorderSizePixel = 0
-    mainFrame.Active = true
-    mainFrame.Draggable = true
-    mainFrame.Parent = screenGui
-    
-    local mainCorner = Instance.new("UICorner")
-    mainCorner.CornerRadius = UDim.new(0, 8)
-    mainCorner.Parent = mainFrame
-    
-    local mainStroke = Instance.new("UIStroke")
-    mainStroke.Color = Color3.fromRGB(255, 165, 0)
-    mainStroke.Thickness = 2
-    mainStroke.Parent = mainFrame
-    
-    -- Title
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Name = "Title"
-    titleLabel.Size = UDim2.new(1, -20, 0, 30)
-    titleLabel.Position = UDim2.new(0, 10, 0, 5)
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = "⚙️ Skill Check Debug"
-    titleLabel.TextColor3 = Color3.fromRGB(255, 165, 0)
-    titleLabel.TextSize = 16
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    titleLabel.Parent = mainFrame
-    
-    -- Line Rotation Label
-    local lineRotationLabel = Instance.new("TextLabel")
-    lineRotationLabel.Name = "LineRotationLabel"
-    lineRotationLabel.Size = UDim2.new(1, -20, 0, 25)
-    lineRotationLabel.Position = UDim2.new(0, 10, 0, 40)
-    lineRotationLabel.BackgroundTransparency = 1
-    lineRotationLabel.Text = "Line Rotation: N/A"
-    lineRotationLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
-    lineRotationLabel.TextSize = 14
-    lineRotationLabel.Font = Enum.Font.GothamBold
-    lineRotationLabel.TextXAlignment = Enum.TextXAlignment.Left
-    lineRotationLabel.Parent = mainFrame
-    
-    -- Goal Rotation Label
-    local goalRotationLabel = Instance.new("TextLabel")
-    goalRotationLabel.Name = "GoalRotationLabel"
-    goalRotationLabel.Size = UDim2.new(1, -20, 0, 25)
-    goalRotationLabel.Position = UDim2.new(0, 10, 0, 70)
-    goalRotationLabel.BackgroundTransparency = 1
-    goalRotationLabel.Text = "Goal Rotation: N/A"
-    goalRotationLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
-    goalRotationLabel.TextSize = 14
-    goalRotationLabel.Font = Enum.Font.GothamBold
-    goalRotationLabel.TextXAlignment = Enum.TextXAlignment.Left
-    goalRotationLabel.Parent = mainFrame
-    
-    -- Circle Rotation Label
-    local circleRotationLabel = Instance.new("TextLabel")
-    circleRotationLabel.Name = "CircleRotationLabel"
-    circleRotationLabel.Size = UDim2.new(1, -20, 0, 25)
-    circleRotationLabel.Position = UDim2.new(0, 10, 0, 100)
-    circleRotationLabel.BackgroundTransparency = 1
-    circleRotationLabel.Text = "Circle Rotation: N/A"
-    circleRotationLabel.TextColor3 = Color3.fromRGB(100, 255, 200)
-    circleRotationLabel.TextSize = 14
-    circleRotationLabel.Font = Enum.Font.Gotham
-    circleRotationLabel.TextXAlignment = Enum.TextXAlignment.Left
-    circleRotationLabel.Parent = mainFrame
-    
-    -- Shadow Rotation Label
-    local shadowRotationLabel = Instance.new("TextLabel")
-    shadowRotationLabel.Name = "ShadowRotationLabel"
-    shadowRotationLabel.Size = UDim2.new(1, -20, 0, 25)
-    shadowRotationLabel.Position = UDim2.new(0, 10, 0, 130)
-    shadowRotationLabel.BackgroundTransparency = 1
-    shadowRotationLabel.Text = "Shadow Rotation: N/A"
-    shadowRotationLabel.TextColor3 = Color3.fromRGB(200, 150, 255)
-    shadowRotationLabel.TextSize = 14
-    shadowRotationLabel.Font = Enum.Font.Gotham
-    shadowRotationLabel.TextXAlignment = Enum.TextXAlignment.Left
-    shadowRotationLabel.Parent = mainFrame
-    
-    -- Space Rotation Label
-    local spaceRotationLabel = Instance.new("TextLabel")
-    spaceRotationLabel.Name = "SpaceRotationLabel"
-    spaceRotationLabel.Size = UDim2.new(1, -20, 0, 25)
-    spaceRotationLabel.Position = UDim2.new(0, 10, 0, 160)
-    spaceRotationLabel.BackgroundTransparency = 1
-    spaceRotationLabel.Text = "Space Rotation: N/A"
-    spaceRotationLabel.TextColor3 = Color3.fromRGB(255, 150, 200)
-    spaceRotationLabel.TextSize = 14
-    spaceRotationLabel.Font = Enum.Font.Gotham
-    spaceRotationLabel.TextXAlignment = Enum.TextXAlignment.Left
-    spaceRotationLabel.Parent = mainFrame
-    
-    -- Difference Label
-    local differenceLabel = Instance.new("TextLabel")
-    differenceLabel.Name = "DifferenceLabel"
-    differenceLabel.Size = UDim2.new(1, -20, 0, 25)
-    differenceLabel.Position = UDim2.new(0, 10, 0, 190)
-    differenceLabel.BackgroundTransparency = 1
-    differenceLabel.Text = "Difference: N/A"
-    differenceLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    differenceLabel.TextSize = 14
-    differenceLabel.Font = Enum.Font.Gotham
-    differenceLabel.TextXAlignment = Enum.TextXAlignment.Left
-    differenceLabel.Parent = mainFrame
-    
-    -- Status Label
-    local statusLabel = Instance.new("TextLabel")
-    statusLabel.Name = "StatusLabel"
-    statusLabel.Size = UDim2.new(1, -20, 0, 25)
-    statusLabel.Position = UDim2.new(0, 10, 0, 220)
-    statusLabel.BackgroundTransparency = 1
-    statusLabel.Text = "Status: Waiting..."
-    statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-    statusLabel.TextSize = 14
-    statusLabel.Font = Enum.Font.GothamBold
-    statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-    statusLabel.Parent = mainFrame
-    
-    -- Info Label
-    local infoLabel = Instance.new("TextLabel")
-    infoLabel.Name = "InfoLabel"
-    infoLabel.Size = UDim2.new(1, -20, 0, 20)
-    infoLabel.Position = UDim2.new(0, 10, 0, 245)
-    infoLabel.BackgroundTransparency = 1
-    infoLabel.Text = "Perfect Zone: ~105° before Goal (±5°)"
-    infoLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
-    infoLabel.TextSize = 11
-    infoLabel.Font = Enum.Font.Gotham
-    infoLabel.TextXAlignment = Enum.TextXAlignment.Left
-    infoLabel.Parent = mainFrame
-    
-    debugOverlayUI = screenGui
-    
-    -- Update loop
-    task.spawn(function()
-        while debugOverlayUI and debugOverlayEnabled do
-            local localPlayer = Players.LocalPlayer
-            if localPlayer then
-                local playerGui = localPlayer:FindFirstChild("PlayerGui")
-                if playerGui then
-                    local skillCheckGui = playerGui:FindFirstChild("SkillCheckPromptGui")
-                    if skillCheckGui then
-                        local check = skillCheckGui:FindFirstChild("Check")
-                        if check then
-                            local line = check:FindFirstChild("Line")
-                            local goal = check:FindFirstChild("Goal")
-                            local circle = check:FindFirstChild("Circle")
-                            local shadow = check:FindFirstChild("Shadow")
-                            local space = check:FindFirstChild("Space")
-                            
-                            if line and goal then
-                                local lineRot = line.Rotation
-                                local goalRot = goal.Rotation
-                                local circleRot = circle and circle.Rotation or 0
-                                local shadowRot = shadow and shadow.Rotation or 0
-                                local spaceRot = space and space.Rotation or 0
-                                
-                                -- Check if skill check has started
-                                if goalRot == 0 or lineRot == 0 then
-                                    -- Display last saved values when reset
-                                    if lastGoalRotation ~= 0 then
-                                        lineRotationLabel.Text = string.format("Line Rotation: %.2f° (Last)", lastLineRotation)
-                                        goalRotationLabel.Text = string.format("Goal Rotation: %.2f° (Last)", lastGoalRotation)
-                                        circleRotationLabel.Text = string.format("Circle Rotation: %.2f° (Last)", lastCircleRotation)
-                                        shadowRotationLabel.Text = string.format("Shadow Rotation: %.2f° (Last)", lastShadowRotation)
-                                        spaceRotationLabel.Text = string.format("Space Rotation: %.2f° (Last)", lastSpaceRotation)
-                                        differenceLabel.Text = string.format("Difference: %.2f° (Last)", lastDifference)
-                                        statusLabel.Text = lastStatus
-                                        statusLabel.TextColor3 = lastStatusColor
-                                    else
-                                        lineRotationLabel.Text = string.format("Line Rotation: %.2f°", lineRot)
-                                        goalRotationLabel.Text = string.format("Goal Rotation: %.2f°", goalRot)
-                                        circleRotationLabel.Text = string.format("Circle Rotation: %.2f°", circleRot)
-                                        shadowRotationLabel.Text = string.format("Shadow Rotation: %.2f°", shadowRot)
-                                        spaceRotationLabel.Text = string.format("Space Rotation: %.2f°", spaceRot)
-                                        differenceLabel.Text = "Difference: N/A"
-                                        statusLabel.Text = "Status: 🔄 Not Started"
-                                        statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-                                    end
-                                else
-                                    local diff = lineRot - goalRot
-                                    
-                                    -- Normalize difference
-                                    while diff > 180 do diff = diff - 360 end
-                                    while diff < -180 do diff = diff + 360 end
-                                    
-                                    -- Save current values
-                                    lastLineRotation = lineRot
-                                    lastGoalRotation = goalRot
-                                    lastCircleRotation = circleRot
-                                    lastShadowRotation = shadowRot
-                                    lastSpaceRotation = spaceRot
-                                    lastDifference = diff
-                                    
-                                    -- Update labels
-                                    lineRotationLabel.Text = string.format("Line Rotation: %.2f°", lineRot)
-                                    goalRotationLabel.Text = string.format("Goal Rotation: %.2f°", goalRot)
-                                    circleRotationLabel.Text = string.format("Circle Rotation: %.2f°", circleRot)
-                                    shadowRotationLabel.Text = string.format("Shadow Rotation: %.2f°", shadowRot)
-                                    spaceRotationLabel.Text = string.format("Space Rotation: %.2f°", spaceRot)
-                                    differenceLabel.Text = string.format("Difference: %.2f°", diff)
-                                    
-                                    -- Calculate status
-                                    local absDiff = math.abs(diff)
-                                    if absDiff >= 100 and absDiff <= 110 then
-                                        lastStatus = "Status: ✓ PERFECT ZONE!"
-                                        lastStatusColor = Color3.fromRGB(0, 255, 0)
-                                    elseif absDiff >= 95 and absDiff <= 115 then
-                                        lastStatus = "Status: ⚠ Good Zone"
-                                        lastStatusColor = Color3.fromRGB(255, 200, 0)
-                                    elseif diff < 100 then
-                                        lastStatus = "Status: ⏳ Too Early"
-                                        lastStatusColor = Color3.fromRGB(100, 150, 255)
-                                    else
-                                        lastStatus = "Status: ❌ Too Late"
-                                        lastStatusColor = Color3.fromRGB(255, 100, 100)
-                                    end
-                                    
-                                    statusLabel.Text = lastStatus
-                                    statusLabel.TextColor3 = lastStatusColor
-                                end
-                            else
-                                -- Display last saved values if available
-                                if lastGoalRotation ~= 0 then
-                                    lineRotationLabel.Text = string.format("Line Rotation: %.2f° (Last)", lastLineRotation)
-                                    goalRotationLabel.Text = string.format("Goal Rotation: %.2f° (Last)", lastGoalRotation)
-                                    circleRotationLabel.Text = string.format("Circle Rotation: %.2f° (Last)", lastCircleRotation)
-                                    shadowRotationLabel.Text = string.format("Shadow Rotation: %.2f° (Last)", lastShadowRotation)
-                                    spaceRotationLabel.Text = string.format("Space Rotation: %.2f° (Last)", lastSpaceRotation)
-                                    differenceLabel.Text = string.format("Difference: %.2f° (Last)", lastDifference)
-                                    statusLabel.Text = lastStatus
-                                    statusLabel.TextColor3 = lastStatusColor
-                                else
-                                    lineRotationLabel.Text = "Line Rotation: N/A"
-                                    goalRotationLabel.Text = "Goal Rotation: N/A"
-                                    circleRotationLabel.Text = "Circle Rotation: N/A"
-                                    shadowRotationLabel.Text = "Shadow Rotation: N/A"
-                                    spaceRotationLabel.Text = "Space Rotation: N/A"
-                                    differenceLabel.Text = "Difference: N/A"
-                                    statusLabel.Text = "Status: No Data"
-                                    statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-                                end
-                            end
-                        else
-                            -- Display last saved values if available
-                            if lastGoalRotation ~= 0 then
-                                lineRotationLabel.Text = string.format("Line Rotation: %.2f° (Last)", lastLineRotation)
-                                goalRotationLabel.Text = string.format("Goal Rotation: %.2f° (Last)", lastGoalRotation)
-                                circleRotationLabel.Text = string.format("Circle Rotation: %.2f° (Last)", lastCircleRotation)
-                                shadowRotationLabel.Text = string.format("Shadow Rotation: %.2f° (Last)", lastShadowRotation)
-                                spaceRotationLabel.Text = string.format("Space Rotation: %.2f° (Last)", lastSpaceRotation)
-                                differenceLabel.Text = string.format("Difference: %.2f° (Last)", lastDifference)
-                                statusLabel.Text = lastStatus
-                                statusLabel.TextColor3 = lastStatusColor
-                            else
-                                lineRotationLabel.Text = "Line Rotation: N/A"
-                                goalRotationLabel.Text = "Goal Rotation: N/A"
-                                circleRotationLabel.Text = "Circle Rotation: N/A"
-                                shadowRotationLabel.Text = "Shadow Rotation: N/A"
-                                spaceRotationLabel.Text = "Space Rotation: N/A"
-                                differenceLabel.Text = "Difference: N/A"
-                                statusLabel.Text = "Status: No Check"
-                                statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-                            end
-                        end
-                    else
-                        -- Display last saved values if available
-                        if lastGoalRotation ~= 0 then
-                            lineRotationLabel.Text = string.format("Line Rotation: %.2f° (Last)", lastLineRotation)
-                            goalRotationLabel.Text = string.format("Goal Rotation: %.2f° (Last)", lastGoalRotation)
-                            circleRotationLabel.Text = string.format("Circle Rotation: %.2f° (Last)", lastCircleRotation)
-                            shadowRotationLabel.Text = string.format("Shadow Rotation: %.2f° (Last)", lastShadowRotation)
-                            spaceRotationLabel.Text = string.format("Space Rotation: %.2f° (Last)", lastSpaceRotation)
-                            differenceLabel.Text = string.format("Difference: %.2f° (Last)", lastDifference)
-                            statusLabel.Text = lastStatus
-                            statusLabel.TextColor3 = lastStatusColor
-                        else
-                            lineRotationLabel.Text = "Line Rotation: N/A"
-                            goalRotationLabel.Text = "Goal Rotation: N/A"
-                            circleRotationLabel.Text = "Circle Rotation: N/A"
-                            shadowRotationLabel.Text = "Shadow Rotation: N/A"
-                            spaceRotationLabel.Text = "Space Rotation: N/A"
-                            differenceLabel.Text = "Difference: N/A"
-                            statusLabel.Text = "Status: Waiting..."
-                            statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-                        end
-                    end
+    local function disableSkillCheckObject(skillCheck)
+        if not skillCheck then return end
+        skillCheck:SetAttribute("Disabled", true)
+        skillCheck:SetAttribute("Enabled", false)
+        
+        -- ✅ EVENT-BASED: Monitor if attributes get changed back
+        local conn1 = skillCheck:GetAttributeChangedSignal("Disabled"):Connect(function()
+            if disableSkillCheckEnabled then
+                if not skillCheck:GetAttribute("Disabled") then
+                    skillCheck:SetAttribute("Disabled", true)
                 end
             end
+        end)
+        
+        local conn2 = skillCheck:GetAttributeChangedSignal("Enabled"):Connect(function()
+            if disableSkillCheckEnabled then
+                if skillCheck:GetAttribute("Enabled") then
+                    skillCheck:SetAttribute("Enabled", false)
+                end
+            end
+        end)
+        
+        table.insert(skillCheckConnections, conn1)
+        table.insert(skillCheckConnections, conn2)
+    end
+    
+    local skillCheckGen = workspaceChar:FindFirstChild("Skillcheck-gen")
+    local skillCheckPlayer = workspaceChar:FindFirstChild("Skillcheck-player")
+    
+    if skillCheckGen then
+        disableSkillCheckObject(skillCheckGen)
+    end
+    
+    if skillCheckPlayer then
+        disableSkillCheckObject(skillCheckPlayer)
+    end
+    
+    -- ✅ EVENT-BASED: Monitor for new skill check objects
+    local conn = workspaceChar.ChildAdded:Connect(function(child)
+        if disableSkillCheckEnabled then
+            if child.Name == "Skillcheck-gen" or child.Name == "Skillcheck-player" then
+                task.wait(0.1)
+                disableSkillCheckObject(child)
+            end
+        end
+    end)
+    
+    table.insert(skillCheckConnections, conn)
+end
+
+local function enableDisableSkillCheck()
+    disableSkillCheckEnabled = true
+    
+    if autoPerfectEnabled then
+        disableAutoPerfect()
+    end
+    
+    local localPlayer = Players.LocalPlayer
+    if localPlayer.Character then
+        local workspaceChar = Workspace:FindFirstChild(localPlayer.Name)
+        if workspaceChar then
+            setupSkillCheckDisabler(workspaceChar)
+        end
+    end
+    
+    -- ✅ Setup on character respawn
+    local conn = localPlayer.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        if disableSkillCheckEnabled then
+            local workspaceChar = Workspace:FindFirstChild(localPlayer.Name)
+            if workspaceChar then
+                setupSkillCheckDisabler(workspaceChar)
+            end
+        end
+    end)
+    
+    table.insert(skillCheckConnections, conn)
+end
+
+local function disableDisableSkillCheck()
+    disableSkillCheckEnabled = false
+    
+    -- Disconnect all monitoring connections
+    for _, conn in ipairs(skillCheckConnections) do
+        if conn and conn.Connected then
+            conn:Disconnect()
+        end
+    end
+    skillCheckConnections = {}
+    
+    -- Re-enable skill checks
+    local localPlayer = Players.LocalPlayer
+    if localPlayer.Character then
+        local workspaceChar = Workspace:FindFirstChild(localPlayer.Name)
+        if workspaceChar then
+            local skillCheckGen = workspaceChar:FindFirstChild("Skillcheck-gen")
+            if skillCheckGen then
+                skillCheckGen:SetAttribute("Disabled", false)
+                skillCheckGen:SetAttribute("Enabled", true)
+            end
             
-            task.wait(0.016) -- Update at ~60 FPS
+            local skillCheckPlayer = workspaceChar:FindFirstChild("Skillcheck-player")
+            if skillCheckPlayer then
+                skillCheckPlayer:SetAttribute("Disabled", false)
+                skillCheckPlayer:SetAttribute("Enabled", true)
+            end
+        end
+    end
+end
+
+-- ===========================================
+-- Aimbot Functions
+-- ===========================================
+local function hasFlashlightEquipped()
+    local localPlayer = Players.LocalPlayer
+    if not localPlayer then return false end
+    
+    local equippedItem = localPlayer:GetAttribute("EquippedItem")
+    return equippedItem == "Flashlight"
+end
+
+local function getKillerTarget()
+    local localPlayer = Players.LocalPlayer
+    if not localPlayer or not localPlayer.Character then return nil end
+    
+    local closestKiller = nil
+    local closestDistance = math.huge
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= localPlayer and isKiller(player) and player.Character then
+            local killerRoot = player.Character:FindFirstChild("HumanoidRootPart")
+            local localRoot = localPlayer.Character:FindFirstChild("HumanoidRootPart")
+            
+            if killerRoot and localRoot then
+                local distance = (killerRoot.Position - localRoot.Position).Magnitude
+                if distance < closestDistance then
+                    closestDistance = distance
+                    closestKiller = player
+                end
+            end
+        end
+    end
+    
+    return closestKiller
+end
+
+local function aimAtKiller()
+    if not aimbotEnabled or not isRightClickHeld then return end
+    if not hasFlashlightEquipped() then return end
+    
+    local localPlayer = Players.LocalPlayer
+    if not localPlayer or not localPlayer.Character then return end
+    
+    local killer = getKillerTarget()
+    if not killer or not killer.Character then return end
+    
+    local killerRoot = killer.Character:FindFirstChild("HumanoidRootPart")
+    local killerHead = killer.Character:FindFirstChild("Head")
+    if not killerRoot and not killerHead then return end
+    
+    local camera = Workspace.CurrentCamera
+    local targetPosition = killerHead and killerHead.Position or killerRoot.Position
+    
+    local currentCFrame = camera.CFrame
+    local targetCFrame = CFrame.new(camera.CFrame.Position, targetPosition)
+    
+    local lerpFactor = 0.3
+    local newCFrame = currentCFrame:Lerp(targetCFrame, lerpFactor)
+    
+    camera.CFrame = newCFrame
+end
+
+local function enableAimbot()
+    aimbotEnabled = true
+    
+    if aimbotConnection then
+        aimbotConnection:Disconnect()
+    end
+    
+    aimbotConnection = RunService.RenderStepped:Connect(function()
+        if aimbotEnabled and isRightClickHeld then
+            pcall(aimAtKiller)
         end
     end)
 end
 
-local function enableDebugOverlay()
-    debugOverlayEnabled = true
-    createDebugOverlay()
-end
-
-local function disableDebugOverlay()
-    debugOverlayEnabled = false
-    if debugOverlayUI then
-        debugOverlayUI:Destroy()
-        debugOverlayUI = nil
+local function disableAimbot()
+    aimbotEnabled = false
+    
+    if aimbotConnection then
+        aimbotConnection:Disconnect()
+        aimbotConnection = nil
     end
 end
 
--- ═══════════════════════════════════════════════════════════════════════════
--- LONG RANGE HEAL FUNCTIONS
--- ═══════════════════════════════════════════════════════════════════════════
-
+-- ===========================================
+-- Long Range Heal Functions
+-- ===========================================
 local function removeHealTargetESP()
     if healTargetESP then
         healTargetESP:Destroy()
@@ -1277,24 +1124,21 @@ local function getTargetInFOV()
     
     local closestPlayer = nil
     local smallestAngle = math.huge
-    local maxAngle = 15 -- FOV angle in degrees
+    local maxAngle = 15
     
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= localPlayer and player.Character then
-            -- Skip if player is a killer
-            if isKiller(player) then
-                continue
-            end
-            
-            local targetRoot = player.Character:FindFirstChild("HumanoidRootPart")
-            if targetRoot then
-                local direction = (targetRoot.Position - cameraPos).Unit
-                local angle = math.acos(cameraLook:Dot(direction))
-                local angleDegrees = math.deg(angle)
-                
-                if angleDegrees < maxAngle and angleDegrees < smallestAngle then
-                    smallestAngle = angleDegrees
-                    closestPlayer = player
+            if not isKiller(player) then
+                local targetRoot = player.Character:FindFirstChild("HumanoidRootPart")
+                if targetRoot then
+                    local direction = (targetRoot.Position - cameraPos).Unit
+                    local angle = math.acos(cameraLook:Dot(direction))
+                    local angleDegrees = math.deg(angle)
+                    
+                    if angleDegrees < maxAngle and angleDegrees < smallestAngle then
+                        smallestAngle = angleDegrees
+                        closestPlayer = player
+                    end
                 end
             end
         end
@@ -1312,7 +1156,6 @@ local function processHeal()
         return
     end
     
-    -- Skip if target is a killer
     if isKiller(healTarget) then
         healTarget = nil
         removeHealTargetESP()
@@ -1327,7 +1170,7 @@ local function processHeal()
     end
     
     local success = pcall(function()
-        local args = { humanoidRootPart, true } -- true to heal, false to cancel
+        local args = { humanoidRootPart, true }
         ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Healing"):WaitForChild("HealEvent"):FireServer(unpack(args))
     end)
     
@@ -1335,615 +1178,176 @@ local function processHeal()
     healTarget = nil
 end
 
--- ═══════════════════════════════════════════════════════════════════════════
--- AUTO REFRESH ESP SYSTEM
--- ═══════════════════════════════════════════════════════════════════════════
 
-local autoRefreshEnabled = true
+
+-- ===========================================
+-- Auto Monitor ESP Functions (EVENT-BASED)
+-- ===========================================
 local lastMapInstance = nil
 
-local function refreshAllESP()
-    if generatorESPHighlightEnabled then
-        disableGeneratorESPHighlight()
-        task.wait(0.1)
-        enableGeneratorESPHighlight()
-    end
-    
-    if pumpkinESPHighlightEnabled then
-        disablePumpkinESPHighlight()
-        task.wait(0.1)
-        enablePumpkinESPHighlight()
-    end
-    
-    if leverESPEnabled then
-        disableLeverESP()
-        task.wait(0.1)
-        enableLeverESP()
-    end
-    
-    -- Refresh Player ESP
-    disableAllPlayerESP()
-    task.wait(0.1)
-    updatePlayerESP()
-end
-
-local function setupAutoRefresh()
-    -- Monitor Map changes
-    task.spawn(function()
-        while autoRefreshEnabled do
-            task.wait(1) -- Check every 10 seconds
+local function setupAutoMonitor()
+    -- ✅ EVENT-BASED: Monitor map changes using ChildAdded/ChildRemoved
+    local mapConnection = Workspace.ChildAdded:Connect(function(child)
+        if child.Name == "Map" then
+            lastMapInstance = child
             
-            local currentMap = Workspace:FindFirstChild("Map")
-            
-            if currentMap ~= lastMapInstance then
-                if currentMap then
-                    lastMapInstance = currentMap
-                    task.wait(0.5)
-                    refreshAllESP()
-                else
-                    lastMapInstance = nil
-                end
-            end
-        end
-    end)
-    
-    -- Monitor new generators and pumpkins
-    task.spawn(function()
-        while autoRefreshEnabled do
-            task.wait(10) -- Check every 10 seconds
-            
-            local map = Workspace:FindFirstChild("Map")
-            if not map then continue end
-            
-            local generators = getGenerators()
-            for _, gen in ipairs(generators) do
-                if generatorESPHighlightEnabled and not generatorESPHighlights[gen] then
-                    createGeneratorESPHighlight(gen)
-                end
+            -- Wait for map to fully load, then scan for existing generators
+            task.wait(1)
+            if generatorESPHighlightEnabled then
+                enableGeneratorESPHighlight()
             end
             
-            local pumpkins = getPumpkins()
-            for _, pumpkin in ipairs(pumpkins) do
-                if pumpkinESPHighlightEnabled and not pumpkinESPHighlights[pumpkin] then
-                    createPumpkinESPHighlight(pumpkin)
-                end
-            end
-            
-            -- Check for lever
-            if leverESPEnabled then
-                local lever = getLever()
-                if lever and not leverESPHighlights[lever] then
-                    createLeverESP(lever)
-                end
-            end
-        end
-    end)
-    
-    -- Monitor player ESP refresh
-    task.spawn(function()
-        while autoRefreshEnabled do
-            task.wait(2) -- Check every 2 seconds for faster refresh
-            
-            if survivorESPEnabled or killerESPEnabled then
-                -- Check for players who left
-                for player, _ in pairs(playerESPData) do
-                    if not player.Parent or not Players:FindFirstChild(player.Name) then
-                        removePlayerESP(player)
+            -- ✅ Monitor generators being added to map (dynamic)
+            local genConn = child.DescendantAdded:Connect(function(descendant)
+                if descendant:IsA("Model") and descendant.Name == "Generator" then
+                    task.wait(0.1)
+                    if generatorESPHighlightEnabled and not generatorESPHighlights[descendant] then
+                        createGeneratorESPHighlight(descendant)
                     end
                 end
-                
-                -- Check for new players or character respawns
-                for _, player in ipairs(Players:GetPlayers()) do
-                    if player ~= Players.LocalPlayer then
-                        local isKillerPlayer = isKiller(player)
-                        local hasESP = playerESPData[player] ~= nil
-                        
-                        -- Refresh ESP if character changed or ESP is broken
-                        if hasESP then
-                            local needsRefresh = false
-                            
-                            -- Check if highlight is broken
-                            if playerESPData[player].highlight then
-                                if not playerESPData[player].highlight.Parent then
-                                    needsRefresh = true
-                                end
-                            else
-                                needsRefresh = true
-                            end
-                            
-                            -- Check if character changed
-                            if not player.Character then
-                                needsRefresh = true
-                            elseif playerESPData[player].highlight and playerESPData[player].highlight.Parent ~= player.Character then
-                                needsRefresh = true
-                            end
-                            
-                            -- Remove old ESP if broken
-                            if needsRefresh then
-                                removePlayerESP(player)
-                                hasESP = false
-                            end
-                        end
-                        
-                        -- Create ESP if needed
-                        if not hasESP and player.Character then
-                            local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
-                            if humanoidRootPart then
-                                if (isKillerPlayer and killerESPEnabled) or (not isKillerPlayer and survivorESPEnabled) then
-                                    createPlayerESP(player, isKillerPlayer)
-                                end
-                            end
-                        end
-                    end
-                end
-            end
+            end)
+            addConnection("autorefresh", genConn)
         end
     end)
+    addConnection("autorefresh", mapConnection)
     
-    -- Monitor player character added (respawn detection)
-    task.spawn(function()
+    local mapRemoveConnection = Workspace.ChildRemoved:Connect(function(child)
+        if child.Name == "Map" and child == lastMapInstance then
+            lastMapInstance = nil
+            -- Clean up ESP when map is removed
+            disableGeneratorESPHighlight()
+        end
+    end)
+    addConnection("autorefresh", mapRemoveConnection)
+    
+    -- ✅ EVENT-BASED: Monitor player ESP validity
+    local function setupPlayerMonitoring()
         for _, player in ipairs(Players:GetPlayers()) do
             if player ~= Players.LocalPlayer then
-                player.CharacterAdded:Connect(function(character)
-                    task.wait(0.5) -- Wait for character to fully load
+                -- Monitor character added
+                local charConn = player.CharacterAdded:Connect(function(character)
+                    task.wait(0.5)
                     
-                    if survivorESPEnabled or killerESPEnabled then
+                    local anyFeatureEnabled = survivorESPEnabled or killerESPEnabled or spectatorInfoEnabled
+                    
+                    if anyFeatureEnabled then
                         local isKillerPlayer = isKiller(player)
-                        
-                        -- Remove old ESP first
                         removePlayerESP(player)
                         
-                        -- Create new ESP
-                        if (isKillerPlayer and killerESPEnabled) or (not isKillerPlayer and survivorESPEnabled) then
+                        local isTargetSpectator = isSpectator(player)
+                        local shouldShow = false
+                        
+                        if isTargetSpectator and spectatorInfoEnabled then
+                            shouldShow = true
+                        end
+                        
+                        if not isTargetSpectator then
+                            local shouldShowESP = (isKillerPlayer and killerESPEnabled) or (not isKillerPlayer and survivorESPEnabled)
+                            if shouldShowESP then
+                                shouldShow = true
+                            end
+                        end
+                        
+                        if shouldShow then
                             createPlayerESP(player, isKillerPlayer)
                         end
                     end
                 end)
+                addConnection("autorefresh", charConn)
+                
+                -- Monitor character removing
+                local charRemoveConn = player.CharacterRemoving:Connect(function()
+                    removePlayerESP(player)
+                end)
+                addConnection("autorefresh", charRemoveConn)
             end
         end
-    end)
+    end
     
-    -- Monitor player join/leave events
-    Players.PlayerAdded:Connect(function(player)
+    setupPlayerMonitoring()
+    
+    -- ✅ EVENT-BASED: Monitor new players joining
+    local playerAddedConn = Players.PlayerAdded:Connect(function(player)
         task.wait(1)
         
-        -- Setup character added event for new player
-        player.CharacterAdded:Connect(function(character)
+        local charConn = player.CharacterAdded:Connect(function(character)
             task.wait(0.5)
             
-            if survivorESPEnabled or killerESPEnabled then
+            local anyFeatureEnabled = survivorESPEnabled or killerESPEnabled or spectatorInfoEnabled
+            
+            if anyFeatureEnabled then
                 local isKillerPlayer = isKiller(player)
-                
                 removePlayerESP(player)
                 
-                if (isKillerPlayer and killerESPEnabled) or (not isKillerPlayer and survivorESPEnabled) then
+                local isTargetSpectator = isSpectator(player)
+                local shouldShow = false
+                
+                if isTargetSpectator and spectatorInfoEnabled then
+                    shouldShow = true
+                end
+                
+                if not isTargetSpectator then
+                    local shouldShowESP = (isKillerPlayer and killerESPEnabled) or (not isKillerPlayer and survivorESPEnabled)
+                    if shouldShowESP then
+                        shouldShow = true
+                    end
+                end
+                
+                if shouldShow then
                     createPlayerESP(player, isKillerPlayer)
                 end
             end
         end)
+        addConnection("autorefresh", charConn)
         
-        if survivorESPEnabled or killerESPEnabled then
+        local anyFeatureEnabled = survivorESPEnabled or killerESPEnabled or spectatorInfoEnabled
+        if anyFeatureEnabled then
             updatePlayerESP()
         end
     end)
+    addConnection("autorefresh", playerAddedConn)
     
-    Players.PlayerRemoving:Connect(function(player)
+    -- ✅ EVENT-BASED: Monitor players leaving
+    local playerRemovingConn = Players.PlayerRemoving:Connect(function(player)
         removePlayerESP(player)
     end)
+    addConnection("autorefresh", playerRemovingConn)
+    
+    -- ✅ EVENT-BASED: Monitor local player team changes
+    local function monitorLocalTeamChange()
+        local localPlayer = Players.LocalPlayer
+        if localPlayer then
+            local lastTeam = localPlayer.Team
+            
+            local teamConn = localPlayer:GetPropertyChangedSignal("Team"):Connect(function()
+                local currentTeam = localPlayer.Team
+                if currentTeam ~= lastTeam then
+                    lastTeam = currentTeam
+                    if spectatorInfoEnabled then
+                        task.wait(0.5)
+                        updateSpectatorInfo()
+                    end
+                end
+            end)
+            addConnection("autorefresh", teamConn)
+        end
+    end
+    
+    monitorLocalTeamChange()
 end
 
--- ═══════════════════════════════════════════════════════════════════════════
--- UI SYNC FUNCTION
--- ═══════════════════════════════════════════════════════════════════════════
-
+-- ===========================================
+-- UI Sync Function
+-- ===========================================
 local function syncUI()
     if generatorHighlightToggle then pcall(function() generatorHighlightToggle:Set(generatorESPHighlightEnabled) end) end
-    if pumpkinHighlightToggle then pcall(function() pumpkinHighlightToggle:Set(pumpkinESPHighlightEnabled) end) end
-    if leverESPToggle then pcall(function() leverESPToggle:Set(leverESPEnabled) end) end
     if survivorESPToggle then pcall(function() survivorESPToggle:Set(survivorESPEnabled) end) end
     if killerESPToggle then pcall(function() killerESPToggle:Set(killerESPEnabled) end) end
-    if survivorItemESPToggle then pcall(function() survivorItemESPToggle:Set(survivorItemESPEnabled) end) end
 end
 
--- ═══════════════════════════════════════════════════════════════════════════
--- SCRIPT EXECUTOR UI (NATIVE ROBLOX)
--- ═══════════════════════════════════════════════════════════════════════════
-
-local scriptExecutorUI = nil
-local scriptExecutorVisible = false
-local savedScripts = {}
-
-local function createScriptExecutorUI()
-    if scriptExecutorUI then
-        scriptExecutorUI:Destroy()
-    end
-    
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "ScriptExecutorUI"
-    screenGui.ResetOnSpawn = false
-    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    
-    local success = pcall(function()
-        screenGui.Parent = CoreGui
-    end)
-    if not success then
-        screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
-    end
-    
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0, 600, 0, 450)
-    mainFrame.Position = UDim2.new(0.5, -300, 0.5, -225)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-    mainFrame.BorderSizePixel = 0
-    mainFrame.Active = true
-    mainFrame.Draggable = true
-    mainFrame.Visible = false
-    mainFrame.Parent = screenGui
-    
-    local mainCorner = Instance.new("UICorner")
-    mainCorner.CornerRadius = UDim.new(0, 10)
-    mainCorner.Parent = mainFrame
-    
-    local mainStroke = Instance.new("UIStroke")
-    mainStroke.Color = Color3.fromRGB(255, 165, 0)
-    mainStroke.Thickness = 2
-    mainStroke.Parent = mainFrame
-    
-    local titleBar = Instance.new("Frame")
-    titleBar.Name = "TitleBar"
-    titleBar.Size = UDim2.new(1, 0, 0, 40)
-    titleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-    titleBar.BorderSizePixel = 0
-    titleBar.Parent = mainFrame
-    
-    local titleCorner = Instance.new("UICorner")
-    titleCorner.CornerRadius = UDim.new(0, 10)
-    titleCorner.Parent = titleBar
-    
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Name = "TitleLabel"
-    titleLabel.Size = UDim2.new(1, -50, 1, 0)
-    titleLabel.Position = UDim2.new(0, 15, 0, 0)
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = "⚡ Script Executor"
-    titleLabel.TextColor3 = Color3.fromRGB(255, 165, 0)
-    titleLabel.TextSize = 18
-    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.Parent = titleBar
-    
-    local closeButton = Instance.new("TextButton")
-    closeButton.Name = "CloseButton"
-    closeButton.Size = UDim2.new(0, 30, 0, 30)
-    closeButton.Position = UDim2.new(1, -35, 0, 5)
-    closeButton.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-    closeButton.Text = "✕"
-    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    closeButton.TextSize = 16
-    closeButton.Font = Enum.Font.GothamBold
-    closeButton.BorderSizePixel = 0
-    closeButton.Parent = titleBar
-    
-    local closeCorner = Instance.new("UICorner")
-    closeCorner.CornerRadius = UDim.new(0, 6)
-    closeCorner.Parent = closeButton
-    
-    closeButton.MouseButton1Click:Connect(function()
-        mainFrame.Visible = false
-        scriptExecutorVisible = false
-    end)
-    
-    -- Line Numbers Frame
-    local lineNumberFrame = Instance.new("Frame")
-    lineNumberFrame.Name = "LineNumberFrame"
-    lineNumberFrame.Size = UDim2.new(0, 40, 0, 280)
-    lineNumberFrame.Position = UDim2.new(0, 15, 0, 55)
-    lineNumberFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    lineNumberFrame.BorderSizePixel = 0
-    lineNumberFrame.Parent = mainFrame
-    
-    local lineCorner = Instance.new("UICorner")
-    lineCorner.CornerRadius = UDim.new(0, 6)
-    lineCorner.Parent = lineNumberFrame
-    
-    local lineNumberBox = Instance.new("TextLabel")
-    lineNumberBox.Name = "LineNumbers"
-    lineNumberBox.Size = UDim2.new(1, -5, 1, -10)
-    lineNumberBox.Position = UDim2.new(0, 5, 0, 5)
-    lineNumberBox.BackgroundTransparency = 1
-    lineNumberBox.TextColor3 = Color3.fromRGB(150, 150, 150)
-    lineNumberBox.TextSize = 14
-    lineNumberBox.Font = Enum.Font.Code
-    lineNumberBox.Text = "1"
-    lineNumberBox.TextXAlignment = Enum.TextXAlignment.Right
-    lineNumberBox.TextYAlignment = Enum.TextYAlignment.Top
-    lineNumberBox.Parent = lineNumberFrame
-    
-    -- Script Input with ScrollingFrame
-    local scrollFrame = Instance.new("ScrollingFrame")
-    scrollFrame.Name = "ScriptScroll"
-    scrollFrame.Size = UDim2.new(1, -75, 0, 280)
-    scrollFrame.Position = UDim2.new(0, 60, 0, 55)
-    scrollFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-    scrollFrame.BorderSizePixel = 0
-    scrollFrame.ScrollBarThickness = 6
-    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-    scrollFrame.Parent = mainFrame
-    
-    local scrollCorner = Instance.new("UICorner")
-    scrollCorner.CornerRadius = UDim.new(0, 6)
-    scrollCorner.Parent = scrollFrame
-    
-    local scriptBox = Instance.new("TextBox")
-    scriptBox.Name = "ScriptBox"
-    scriptBox.Size = UDim2.new(1, -10, 1, 0)
-    scriptBox.Position = UDim2.new(0, 5, 0, 0)
-    scriptBox.BackgroundTransparency = 1
-    scriptBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-    scriptBox.TextSize = 14
-    scriptBox.Font = Enum.Font.Code
-    scriptBox.Text = "-- Enter your Lua script here\nprint('Hello World!')"
-    scriptBox.TextXAlignment = Enum.TextXAlignment.Left
-    scriptBox.TextYAlignment = Enum.TextYAlignment.Top
-    scriptBox.MultiLine = true
-    scriptBox.ClearTextOnFocus = false
-    scriptBox.TextWrapped = true
-    scriptBox.Parent = scrollFrame
-    
-    -- Update line numbers and canvas size
-    local function updateLineNumbers()
-        local text = scriptBox.Text
-        local lines = 1
-        for _ in text:gmatch("\n") do
-            lines = lines + 1
-        end
-        
-        local lineText = ""
-        for i = 1, lines do
-            lineText = lineText .. i .. "\n"
-        end
-        lineNumberBox.Text = lineText
-        
-        -- Update canvas size
-        local textSize = game:GetService("TextService"):GetTextSize(
-            text,
-            scriptBox.TextSize,
-            scriptBox.Font,
-            Vector2.new(scriptBox.AbsoluteSize.X, math.huge)
-        )
-        scriptBox.Size = UDim2.new(1, -10, 0, math.max(textSize.Y + 10, scrollFrame.AbsoluteSize.Y))
-        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, scriptBox.AbsoluteSize.Y)
-    end
-    
-    scriptBox:GetPropertyChangedSignal("Text"):Connect(updateLineNumbers)
-    updateLineNumbers()
-    
-    -- Save Script Name Input
-    local saveNameBox = Instance.new("TextBox")
-    saveNameBox.Name = "SaveNameBox"
-    saveNameBox.Size = UDim2.new(0, 200, 0, 30)
-    saveNameBox.Position = UDim2.new(0, 15, 0, 345)
-    saveNameBox.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-    saveNameBox.BorderSizePixel = 0
-    saveNameBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-    saveNameBox.TextSize = 12
-    saveNameBox.Font = Enum.Font.Gotham
-    saveNameBox.PlaceholderText = "Script name..."
-    saveNameBox.Text = ""
-    saveNameBox.Parent = mainFrame
-    
-    local saveNameCorner = Instance.new("UICorner")
-    saveNameCorner.CornerRadius = UDim.new(0, 6)
-    saveNameCorner.Parent = saveNameBox
-    
-    -- Saved Scripts Dropdown
-    local savedScriptFrame = Instance.new("Frame")
-    savedScriptFrame.Name = "SavedScriptFrame"
-    savedScriptFrame.Size = UDim2.new(0, 200, 0, 30)
-    savedScriptFrame.Position = UDim2.new(0, 15, 0, 385)
-    savedScriptFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-    savedScriptFrame.BorderSizePixel = 0
-    savedScriptFrame.Parent = mainFrame
-    
-    local savedCorner = Instance.new("UICorner")
-    savedCorner.CornerRadius = UDim.new(0, 6)
-    savedCorner.Parent = savedScriptFrame
-    
-    local savedLabel = Instance.new("TextLabel")
-    savedLabel.Size = UDim2.new(1, -5, 1, 0)
-    savedLabel.Position = UDim2.new(0, 5, 0, 0)
-    savedLabel.BackgroundTransparency = 1
-    savedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    savedLabel.TextSize = 12
-    savedLabel.Font = Enum.Font.Gotham
-    savedLabel.Text = "No saved scripts"
-    savedLabel.TextXAlignment = Enum.TextXAlignment.Left
-    savedLabel.Parent = savedScriptFrame
-    
-    -- Execute Button
-    local executeButton = Instance.new("TextButton")
-    executeButton.Name = "ExecuteButton"
-    executeButton.Size = UDim2.new(0, 110, 0, 35)
-    executeButton.Position = UDim2.new(0, 225, 0, 345)
-    executeButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
-    executeButton.Text = "▶ Execute (H)"
-    executeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    executeButton.TextSize = 14
-    executeButton.Font = Enum.Font.GothamBold
-    executeButton.BorderSizePixel = 0
-    executeButton.Parent = mainFrame
-    
-    local execCorner = Instance.new("UICorner")
-    execCorner.CornerRadius = UDim.new(0, 8)
-    execCorner.Parent = executeButton
-    
-    -- Clear Button
-    local clearButton = Instance.new("TextButton")
-    clearButton.Name = "ClearButton"
-    clearButton.Size = UDim2.new(0, 110, 0, 35)
-    clearButton.Position = UDim2.new(0, 345, 0, 345)
-    clearButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-    clearButton.Text = "🗑 Clear"
-    clearButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    clearButton.TextSize = 14
-    clearButton.Font = Enum.Font.GothamBold
-    clearButton.BorderSizePixel = 0
-    clearButton.Parent = mainFrame
-    
-    local clearCorner = Instance.new("UICorner")
-    clearCorner.CornerRadius = UDim.new(0, 8)
-    clearCorner.Parent = clearButton
-    
-    -- Save Button
-    local saveButton = Instance.new("TextButton")
-    saveButton.Name = "SaveButton"
-    saveButton.Size = UDim2.new(0, 110, 0, 35)
-    saveButton.Position = UDim2.new(0, 465, 0, 345)
-    saveButton.BackgroundColor3 = Color3.fromRGB(50, 150, 255)
-    saveButton.Text = "💾 Save"
-    saveButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    saveButton.TextSize = 14
-    saveButton.Font = Enum.Font.GothamBold
-    saveButton.BorderSizePixel = 0
-    saveButton.Parent = mainFrame
-    
-    local saveCorner = Instance.new("UICorner")
-    saveCorner.CornerRadius = UDim.new(0, 8)
-    saveCorner.Parent = saveButton
-    
-    -- Load Button
-    local loadButton = Instance.new("TextButton")
-    loadButton.Name = "LoadButton"
-    loadButton.Size = UDim2.new(0, 110, 0, 35)
-    loadButton.Position = UDim2.new(0, 225, 0, 385)
-    loadButton.BackgroundColor3 = Color3.fromRGB(100, 100, 255)
-    loadButton.Text = "📂 Load"
-    loadButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    loadButton.TextSize = 14
-    loadButton.Font = Enum.Font.GothamBold
-    loadButton.BorderSizePixel = 0
-    loadButton.Parent = mainFrame
-    
-    local loadCorner = Instance.new("UICorner")
-    loadCorner.CornerRadius = UDim.new(0, 8)
-    loadCorner.Parent = loadButton
-    
-    -- Delete Button
-    local deleteButton = Instance.new("TextButton")
-    deleteButton.Name = "DeleteButton"
-    deleteButton.Size = UDim2.new(0, 110, 0, 35)
-    deleteButton.Position = UDim2.new(0, 345, 0, 385)
-    deleteButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
-    deleteButton.Text = "🗑 Delete"
-    deleteButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    deleteButton.TextSize = 14
-    deleteButton.Font = Enum.Font.GothamBold
-    deleteButton.BorderSizePixel = 0
-    deleteButton.Parent = mainFrame
-    
-    local deleteCorner = Instance.new("UICorner")
-    deleteCorner.CornerRadius = UDim.new(0, 8)
-    deleteCorner.Parent = deleteButton
-    
-    -- List Button
-    local listButton = Instance.new("TextButton")
-    listButton.Name = "ListButton"
-    listButton.Size = UDim2.new(0, 110, 0, 35)
-    listButton.Position = UDim2.new(0, 465, 0, 385)
-    listButton.BackgroundColor3 = Color3.fromRGB(100, 150, 100)
-    listButton.Text = "📋 List All"
-    listButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    listButton.TextSize = 14
-    listButton.Font = Enum.Font.GothamBold
-    listButton.BorderSizePixel = 0
-    listButton.Parent = mainFrame
-    
-    local listCorner = Instance.new("UICorner")
-    listCorner.CornerRadius = UDim.new(0, 8)
-    listCorner.Parent = listButton
-    
-    -- Functions
-    local function executeScript()
-        local scriptText = scriptBox.Text
-        
-        if scriptText == "" or scriptText == nil then
-            return
-        end
-        
-        pcall(function()
-            loadstring(scriptText)()
-        end)
-    end
-    
-    local function updateSavedLabel()
-        if next(savedScripts) == nil then
-            savedLabel.Text = "No saved scripts"
-        else
-            local names = {}
-            for name, _ in pairs(savedScripts) do
-                table.insert(names, name)
-            end
-            savedLabel.Text = table.concat(names, ", ")
-        end
-    end
-    
-    executeButton.MouseButton1Click:Connect(executeScript)
-    
-    clearButton.MouseButton1Click:Connect(function()
-        scriptBox.Text = ""
-    end)
-    
-    saveButton.MouseButton1Click:Connect(function()
-        local name = saveNameBox.Text
-        if name ~= "" and scriptBox.Text ~= "" then
-            savedScripts[name] = scriptBox.Text
-            saveNameBox.Text = ""
-            updateSavedLabel()
-        end
-    end)
-    
-    loadButton.MouseButton1Click:Connect(function()
-        local name = saveNameBox.Text
-        if name ~= "" and savedScripts[name] then
-            scriptBox.Text = savedScripts[name]
-        end
-    end)
-    
-    deleteButton.MouseButton1Click:Connect(function()
-        local name = saveNameBox.Text
-        if name ~= "" and savedScripts[name] then
-            savedScripts[name] = nil
-            saveNameBox.Text = ""
-            updateSavedLabel()
-        end
-    end)
-    
-    listButton.MouseButton1Click:Connect(function()
-        if next(savedScripts) == nil then return end
-        for name, _ in pairs(savedScripts) do
-            saveNameBox.Text = name
-            break
-        end
-    end)
-    
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        if input.KeyCode == Enum.KeyCode.H and mainFrame.Visible then
-            executeScript()
-        end
-    end)
-    
-    scriptExecutorUI = screenGui
-    return mainFrame
-end
-
-local executorFrame = createScriptExecutorUI()
-
--- ═══════════════════════════════════════════════════════════════════════════
--- WINDOW CREATION
--- ═══════════════════════════════════════════════════════════════════════════
-
+-- ===========================================
+-- UI Window
+-- ===========================================
 local Window = WindUI:CreateWindow({
     Title = "VD Helper",
     Icon = "zap",
@@ -1957,22 +1361,24 @@ local Window = WindUI:CreateWindow({
 
 Window:SetToggleKey(Enum.KeyCode.RightShift)
 
--- ═══════════════════════════════════════════════════════════════════════════
--- TAB: ESP
--- ═══════════════════════════════════════════════════════════════════════════
-
+-- ===========================================
+-- Tab: ESP
+-- ===========================================
 local ESPTab = Window:Tab({
     Title = "ESP",
     Icon = "eye",
 })
 
+-- ===========================================
+-- Object ESP Section
+-- ===========================================
 ESPTab:Section({
     Title = "Object ESP",
 })
 
 generatorHighlightToggle = ESPTab:Toggle({
-    Title = "Generator Highlight",
-    Desc = "Show glow around generators",
+    Title = "Generator ESP",
+    Desc = "Show ESP on generators with progress",
     Icon = "zap",
     Value = false,
     Callback = function(state)
@@ -1985,43 +1391,36 @@ generatorHighlightToggle = ESPTab:Toggle({
     end
 })
 
-pumpkinHighlightToggle = ESPTab:Toggle({
-    Title = "Pumpkin Highlight",
-    Desc = "Show glow around pumpkins",
-    Icon = "circle",
-    Value = false,
-    Callback = function(state)
-        pumpkinESPHighlightEnabled = state
-        if pumpkinESPHighlightEnabled then
-            enablePumpkinESPHighlight()
-        else
-            disablePumpkinESPHighlight()
+ESPTab:Slider({
+    Title = "Generator Transparency",
+    Desc = "Adjust generator highlight transparency",
+    Step = 0.05,
+    Value = {
+        Min = 0,
+        Max = 1,
+        Default = 0.75,
+    },
+    Callback = function(value)
+        ESPConfig.generatorFillTransparency = value
+        -- Update existing highlights
+        for generator, data in pairs(generatorESPHighlights) do
+            if data.highlight then
+                data.highlight.FillTransparency = value
+            end
         end
     end
 })
 
-leverESPToggle = ESPTab:Toggle({
-    Title = "Exit Lever ESP",
-    Desc = "Show ESP for exit lever with progress",
-    Icon = "toggle-right",
-    Value = false,
-    Callback = function(state)
-        leverESPEnabled = state
-        if leverESPEnabled then
-            enableLeverESP()
-        else
-            disableLeverESP()
-        end
-    end
-})
-
+-- ===========================================
+-- Player ESP Section
+-- ===========================================
 ESPTab:Section({
     Title = "Player ESP",
 })
 
 survivorESPToggle = ESPTab:Toggle({
     Title = "Survivor ESP",
-    Desc = "Show green ESP for survivors",
+    Desc = "Show ESP for survivors with info",
     Icon = "user",
     Value = false,
     Callback = function(state)
@@ -2032,7 +1431,7 @@ survivorESPToggle = ESPTab:Toggle({
 
 killerESPToggle = ESPTab:Toggle({
     Title = "Killer ESP",
-    Desc = "Show red ESP for killer",
+    Desc = "Show ESP for killer with info",
     Icon = "user-x",
     Value = false,
     Callback = function(state)
@@ -2041,46 +1440,73 @@ killerESPToggle = ESPTab:Toggle({
     end
 })
 
-survivorItemESPToggle = ESPTab:Toggle({
-    Title = "Show Survivor Items",
-    Desc = "Show equipped items for survivors",
-    Icon = "package",
+ESPTab:Toggle({
+    Title = "Spectator Info",
+    Desc = "Show detailed info for lobby players",
+    Icon = "info",
     Value = false,
     Callback = function(state)
-        survivorItemESPEnabled = state
-        updateSurvivorItemESP()
+        spectatorInfoEnabled = state
+        updateSpectatorInfo()
     end
 })
 
+ESPTab:Slider({
+    Title = "Player Transparency",
+    Desc = "Adjust player highlight transparency",
+    Step = 0.05,
+    Value = {
+        Min = 0,
+        Max = 1,
+        Default = 0.75,
+    },
+    Callback = function(value)
+        ESPConfig.playerFillTransparency = value
+        for player, data in pairs(playerESPData) do
+            if data.highlight then
+                data.highlight.FillTransparency = value
+            end
+        end
+    end
+})
+
+-- ===========================================
+-- ESP Actions Section
+-- ===========================================
 ESPTab:Section({
-    Title = "Actions",
+    Title = "Quick Actions",
 })
 
 ESPTab:Button({
-    Title = "Refresh All ESP",
-    Desc = "Manually refresh all ESP",
+    Title = "Enable All ESP",
+    Desc = "Turn on all ESP features at once",
+    Icon = "eye",
     Callback = function()
-        refreshAllESP()
+        generatorESPHighlightEnabled = true
+        enableGeneratorESPHighlight()
+        
+        survivorESPEnabled = true
+        killerESPEnabled = true
+        updatePlayerESP()
+        
+        syncUI()
+        
+        WindUI:Notify({
+            Title = "ESP Enabled",
+            Content = "All ESP features are now active",
+            Duration = 2
+        })
     end
 })
 
 ESPTab:Button({
     Title = "Disable All ESP",
-    Desc = "Turn off all ESP features",
+    Desc = "Turn off all ESP features at once",
+    Icon = "eye-off",
     Callback = function()
         if generatorESPHighlightEnabled then
             generatorESPHighlightEnabled = false
             disableGeneratorESPHighlight()
-        end
-        
-        if pumpkinESPHighlightEnabled then
-            pumpkinESPHighlightEnabled = false
-            disablePumpkinESPHighlight()
-        end
-        
-        if leverESPEnabled then
-            leverESPEnabled = false
-            disableLeverESP()
         end
         
         if survivorESPEnabled then
@@ -2091,18 +1517,29 @@ ESPTab:Button({
             killerESPEnabled = false
         end
         
+        spectatorInfoEnabled = false
+        
         disableAllPlayerESP()
         syncUI()
+        
+        WindUI:Notify({
+            Title = "ESP Disabled",
+            Content = "All ESP features have been turned off",
+            Duration = 2
+        })
     end
 })
 
+-- ===========================================
+-- Crosshair Section
+-- ===========================================
 ESPTab:Section({
     Title = "Crosshair",
 })
 
 ESPTab:Toggle({
     Title = "Show Crosshair",
-    Desc = "Display crosshair in center of screen",
+    Desc = "Display custom crosshair in center of screen",
     Icon = "crosshair",
     Value = false,
     Callback = function(state)
@@ -2114,10 +1551,9 @@ ESPTab:Toggle({
     end
 })
 
--- ═══════════════════════════════════════════════════════════════════════════
--- TAB: SURVIVOR
--- ═══════════════════════════════════════════════════════════════════════════
-
+-- ===========================================
+-- Tab: Survivor
+-- ===========================================
 local SurvivorTab = Window:Tab({
     Title = "Survivor",
     Icon = "heart",
@@ -2128,6 +1564,7 @@ SurvivorTab:Section({
 })
 
 SurvivorTab:Toggle({
+    Title = "Enable Speed Boost (Killer & Survivor)",
     Title = "Enable Speed Boost (Killer & Survivor)",
     Desc = "Boost your movement speed",
     Icon = "zap",
@@ -2145,8 +1582,13 @@ SurvivorTab:Slider({
     Title = "Speed Boost Value (Default 16)",
     Desc = "Set speed boost value",
     Step = 1,
+    Title = "Speed Boost Value (Default 16)",
+    Desc = "Set speed boost value",
+    Step = 1,
     Value = {
         Min = 1,
+        Max = 100,
+        Default = 16,
         Max = 100,
         Default = 16,
     },
@@ -2177,15 +1619,14 @@ SurvivorTab:Toggle({
 })
 
 SurvivorTab:Toggle({
-    Title = "Debug Overlay",
-    Desc = "Show rotation values in real-time",
-    Icon = "activity",
+    Title = "Disable Skill Check",
+    Desc = "Remove skill check prompts completely",
     Value = false,
     Callback = function(state)
         if state then
-            enableDebugOverlay()
+            enableDisableSkillCheck()
         else
-            disableDebugOverlay()
+            disableDisableSkillCheck()
         end
     end
 })
@@ -2217,7 +1658,7 @@ SurvivorTab:Button({
             local humanoidRootPart = healTarget.Character:FindFirstChild("HumanoidRootPart")
             if humanoidRootPart then
                 pcall(function()
-                    local args = { humanoidRootPart, false } -- false to cancel heal
+                    local args = { humanoidRootPart, false }
                     ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Healing"):WaitForChild("HealEvent"):FireServer(unpack(args))
                 end)
             end
@@ -2227,33 +1668,106 @@ SurvivorTab:Button({
     end
 })
 
--- ═══════════════════════════════════════════════════════════════════════════
--- TAB: EXECUTOR
--- ═══════════════════════════════════════════════════════════════════════════
-
-local ExecutorTab = Window:Tab({
-    Title = "Executor",
-    Icon = "code",
+SurvivorTab:Section({
+    Title = "Aimbot (Flashlight)",
 })
 
-ExecutorTab:Section({
-    Title = "Script Executor",
-})
-
-ExecutorTab:Toggle({
-    Title = "Show Script Executor",
-    Desc = "Toggle script executor UI",
-    Icon = "code",
+SurvivorTab:Toggle({
+    Title = "Enable Aimbot",
+    Desc = "Hold right-click to aim at killer (Flashlight required)",
+    Icon = "target",
     Value = false,
     Callback = function(state)
-        scriptExecutorVisible = state
-        if executorFrame then
-            executorFrame.Visible = state
+        if state then
+            enableAimbot()
+        else
+            disableAimbot()
+            isRightClickHeld = false
         end
     end
 })
 
--- Long Range Heal Loop
+-- ===========================================
+-- Tab: Server
+-- ===========================================
+local ServerTab = Window:Tab({
+    Title = "Server",
+    Icon = "globe",
+})
+
+ServerTab:Section({
+    Title = "Server Controls",
+})
+
+ServerTab:Button({
+    Title = "Server Hop",
+    Desc = "Join a different server",
+    Icon = "refresh-cw",
+    Callback = function()
+        local TeleportService = game:GetService("TeleportService")
+        local Players = game:GetService("Players")
+        local HttpService = game:GetService("HttpService")
+        
+        local placeId = game.PlaceId
+        local jobId = game.JobId
+        
+        local success, result = pcall(function()
+            local servers = HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"))
+            
+            local serverList = {}
+            for _, server in pairs(servers.data) do
+                if server.id ~= jobId and server.playing < server.maxPlayers then
+                    table.insert(serverList, server)
+                end
+            end
+            
+            if #serverList > 0 then
+                local randomServer = serverList[math.random(1, #serverList)]
+                TeleportService:TeleportToPlaceInstance(placeId, randomServer.id, Players.LocalPlayer)
+            else
+                WindUI:Notify({
+                    Title = "Server Hop",
+                    Content = "No available servers found",
+                    Duration = 3
+                })
+            end
+        end)
+        
+        if not success then
+            WindUI:Notify({
+                Title = "Server Hop",
+                Content = "Failed to server hop: " .. tostring(result),
+                Duration = 3
+            })
+        end
+    end
+})
+
+ServerTab:Button({
+    Title = "Rejoin Server",
+    Desc = "Rejoin current server",
+    Icon = "rotate-ccw",
+    Callback = function()
+        local TeleportService = game:GetService("TeleportService")
+        local Players = game:GetService("Players")
+        
+        local success, result = pcall(function()
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, Players.LocalPlayer)
+        end)
+        
+        if not success then
+            WindUI:Notify({
+                Title = "Rejoin Server",
+                Content = "Failed to rejoin: " .. tostring(result),
+                Duration = 3
+            })
+        end
+    end
+})
+
+-- ===========================================
+-- Event Listeners
+-- ===========================================
 RunService.RenderStepped:Connect(function()
     if longRangeHealEnabled then
         local target = getTargetInFOV()
@@ -2274,64 +1788,72 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Heal Keybind
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
     if input.KeyCode == healKeybind and longRangeHealEnabled and healTarget then
         processHeal()
     end
+    
+    if input.UserInputType == Enum.UserInputType.MouseButton2 and aimbotEnabled then
+        isRightClickHeld = true
+    end
 end)
 
--- Player ESP Update Loop
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        isRightClickHeld = false
+    end
+end)
+
 RunService.Heartbeat:Connect(function()
-    if survivorESPEnabled or killerESPEnabled then
+    local anyFeatureEnabled = survivorESPEnabled or killerESPEnabled or spectatorInfoEnabled
+    
+    if anyFeatureEnabled then
         for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= Players.LocalPlayer then
+            if player ~= Players.LocalPlayer and player.Character then
                 local isKillerPlayer = isKiller(player)
+                local isTargetSpectator = isSpectator(player)
                 local hasESP = playerESPData[player] ~= nil
                 
-                if isKillerPlayer and killerESPEnabled and not hasESP then
-                    createPlayerESP(player, true)
-                elseif not isKillerPlayer and survivorESPEnabled and not hasESP then
-                    createPlayerESP(player, false)
-                elseif hasESP then
-                    if (isKillerPlayer and not killerESPEnabled) or (not isKillerPlayer and not survivorESPEnabled) then
-                        removePlayerESP(player)
+                local shouldShow = false
+                
+                if isTargetSpectator and spectatorInfoEnabled then
+                    shouldShow = true
+                end
+                
+                if not isTargetSpectator then
+                    local shouldShowESP = (isKillerPlayer and killerESPEnabled) or (not isKillerPlayer and survivorESPEnabled)
+                    if shouldShowESP then
+                        shouldShow = true
                     end
                 end
+                
+                if shouldShow and not hasESP then
+                    createPlayerESP(player, isKillerPlayer)
+                elseif hasESP and not shouldShow then
+                    removePlayerESP(player)
+                end
             end
+        end
+    else
+        for player, _ in pairs(playerESPData) do
+            removePlayerESP(player)
         end
     end
 end)
 
--- Initialize Auto Refresh
-setupAutoRefresh()
+setupAutoMonitor()
 
--- ═══════════════════════════════════════════════════════════════════════════
--- WINDOW DESTROY HANDLER
--- ═══════════════════════════════════════════════════════════════════════════
-
+-- ===========================================
+-- Cleanup on Window Destroy
+-- ===========================================
 Window:OnDestroy(function()
-    -- Disable Generator ESP
     if generatorESPHighlightEnabled then
         generatorESPHighlightEnabled = false
         disableGeneratorESPHighlight()
     end
     
-    -- Disable Pumpkin ESP
-    if pumpkinESPHighlightEnabled then
-        pumpkinESPHighlightEnabled = false
-        disablePumpkinESPHighlight()
-    end
-    
-    -- Disable Lever ESP
-    if leverESPEnabled then
-        leverESPEnabled = false
-        disableLeverESP()
-    end
-    
-    -- Disable Player ESP (Survivor & Killer)
     if survivorESPEnabled then
         survivorESPEnabled = false
     end
@@ -2340,43 +1862,41 @@ Window:OnDestroy(function()
         killerESPEnabled = false
     end
 
-    -- Disable Crosshair
     if crosshairEnabled then
         disableCrosshair()
     end
     
     disableAllPlayerESP()
     
-    -- Disable Speed Boost
     if speedBoostEnabled then
         disableSpeedBoost()
     end
     
-    -- Disable Auto Perfect
     if autoPerfectEnabled then
         disableAutoPerfect()
     end
     
-    -- Disable Debug Overlay
-    if debugOverlayEnabled then
-        disableDebugOverlay()
+    if disableSkillCheckEnabled then
+        disableDisableSkillCheck()
     end
     
-    -- Disable Long Range Heal
     if longRangeHealEnabled then
         longRangeHealEnabled = false
         healTarget = nil
         removeHealTargetESP()
     end
     
-    -- Disable Auto Refresh
-    autoRefreshEnabled = false
-    
-    -- Destroy Script Executor UI
-    if scriptExecutorUI then
-        scriptExecutorUI:Destroy()
-        scriptExecutorUI = nil
+    if aimbotEnabled then
+        disableAimbot()
+        isRightClickHeld = false
     end
     
-    print("VD Helper: All features disabled")
+    autoRefreshEnabled = false
+    
+    -- Disconnect all connections
+    for category, _ in pairs(activeConnections) do
+        disconnectAll(category)
+    end
+    
+    print("VD Helper: All features disabled and cleaned up")
 end)
