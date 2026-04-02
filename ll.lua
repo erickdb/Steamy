@@ -13,11 +13,11 @@ local playerGui = player:WaitForChild("PlayerGui")
 
 -- CONFIGURATION ===============================================================
 local CONFIG = {
-    typingSpeed = 0.15,        -- Typing speed (seconds between each letter)
+    typingSpeed = 0.09,        -- Typing speed (seconds between each letter)
     minLength = 3,             -- Minimum word length
-    maxLength = 15,            -- Maximum word length
-    idealLength = 6,           -- Ideal length for prioritization
-    autoResetTime = 300,       -- 5 minutes in seconds
+    maxLength = 30,            -- Maximum word length
+    idealLength = 4,           -- Ideal length for prioritization
+    autoResetTime = 600,       -- 10 minutes in seconds
     wordsPerPage = 10,         -- Words per page
 }
 
@@ -357,24 +357,18 @@ local function updateTopWords(input)
 
     -- Smart sorting by ideal length
     table.sort(topWords, function(a, b)
-        if #a == #b then
-            return a < b -- kalau panjang sama, baru urut abjad
-        end
-        return #a < #b -- prioritas kata paling pendek
-    end)
-    -- table.sort(topWords, function(a, b)
-    --     local lenA, lenB = #a, #b
-    --     local distA = math.abs(lenA - CONFIG.idealLength)
-    --     local distB = math.abs(lenB - CONFIG.idealLength)
+        local lenA, lenB = #a, #b
+        local distA = math.abs(lenA - CONFIG.idealLength)
+        local distB = math.abs(lenB - CONFIG.idealLength)
         
-    --     if distA == distB then
-    --         if lenA == lenB then
-    --             return a < b
-    --         end
-    --         return lenA < lenB
-    --     end
-    --     return distA < distB
-    -- end)
+        if distA == distB then
+            if lenA == lenB then
+                return a < b
+            end
+            return lenA < lenB
+        end
+        return distA < distB
+    end)
 
     currentPage = 1
     displayPage()
