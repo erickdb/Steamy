@@ -349,25 +349,32 @@ local function updateTopWords(input)
 
     -- Collect unused matching words
     for _, w in ipairs(allWords) do
-        if w:sub(1, #input) == input and w ~= input and not usedWords[w] then
+        --  w ~= input and
+        if w:sub(1, #input) == input and not usedWords[w] then
             table.insert(topWords, w)
         end
     end
 
     -- Smart sorting by ideal length
     table.sort(topWords, function(a, b)
-        local lenA, lenB = #a, #b
-        local distA = math.abs(lenA - CONFIG.idealLength)
-        local distB = math.abs(lenB - CONFIG.idealLength)
-        
-        if distA == distB then
-            if lenA == lenB then
-                return a < b
-            end
-            return lenA < lenB
+        if #a == #b then
+            return a < b -- kalau panjang sama, baru urut abjad
         end
-        return distA < distB
+        return #a < #b -- prioritas kata paling pendek
     end)
+    -- table.sort(topWords, function(a, b)
+    --     local lenA, lenB = #a, #b
+    --     local distA = math.abs(lenA - CONFIG.idealLength)
+    --     local distB = math.abs(lenB - CONFIG.idealLength)
+        
+    --     if distA == distB then
+    --         if lenA == lenB then
+    --             return a < b
+    --         end
+    --         return lenA < lenB
+    --     end
+    --     return distA < distB
+    -- end)
 
     currentPage = 1
     displayPage()
