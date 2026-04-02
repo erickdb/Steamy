@@ -15,8 +15,8 @@ local playerGui = player:WaitForChild("PlayerGui")
 local CONFIG = {
     typingSpeed = 0.09,        -- Typing speed (seconds between each letter)
     minLength = 3,             -- Minimum word length
-    maxLength = 30,            -- Maximum word length
-    idealLength = 4,           -- Ideal length for prioritization
+    maxLength = 100,            -- Maximum word length
+    idealLength = 6,           -- Ideal length for prioritization
     autoResetTime = 600,       -- 10 minutes in seconds
     wordsPerPage = 10,         -- Words per page
 }
