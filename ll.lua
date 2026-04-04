@@ -45,7 +45,102 @@ local topWords = {}
 local selectedIndex = 1
 local currentPage = 1
 
--- GUI SETUP ===================================================================
+-- -- GUI SETUP ===================================================================
+-- local screenGui = Instance.new("ScreenGui")
+-- screenGui.Name = "MegaWordSearchPro"
+-- screenGui.ResetOnSpawn = false
+-- screenGui.Parent = playerGui
+
+-- local scaleFactor = 0.75
+-- local marginX, marginY = 20, 20
+
+-- -- SearchBox
+-- local searchBox = Instance.new("TextBox")
+-- searchBox.Size = UDim2.new(0, 540 * scaleFactor, 0, 90 * scaleFactor)
+-- searchBox.Position = UDim2.new(1, -540*scaleFactor - marginX, 1, -90*scaleFactor - marginY)
+-- searchBox.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+-- searchBox.BorderColor3 = Color3.fromRGB(0, 255, 255)
+-- searchBox.BorderSizePixel = 4
+-- searchBox.TextColor3 = Color3.fromRGB(0, 255, 255)
+-- searchBox.PlaceholderText = "⏳ Loading dictionary..."
+-- searchBox.Font = Enum.Font.GothamBold
+-- searchBox.TextSize = 36 * scaleFactor
+-- searchBox.ClearTextOnFocus = false
+-- searchBox.TextEditable = true
+-- searchBox.Parent = screenGui
+
+-- -- Toggle Button
+-- local toggleButton = Instance.new("TextButton")
+-- toggleButton.Size = UDim2.new(0, 200 * scaleFactor, 0, 50 * scaleFactor)
+-- toggleButton.Position = UDim2.new(1, -200*scaleFactor - marginX, 1, -150*scaleFactor - marginY)
+-- toggleButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+-- toggleButton.BorderColor3 = Color3.fromRGB(255, 0, 0)
+-- toggleButton.BorderSizePixel = 3
+-- toggleButton.TextColor3 = Color3.fromRGB(255, 0, 0)
+-- toggleButton.Font = Enum.Font.GothamBold
+-- toggleButton.TextSize = 20 * scaleFactor
+-- toggleButton.Text = "🔴 Console OFF"
+-- toggleButton.Parent = screenGui
+
+-- -- Troll Button
+-- local trollButton = Instance.new("TextButton")
+-- trollButton.Size = UDim2.new(0, 120 * scaleFactor, 0, 50 * scaleFactor)
+-- trollButton.Position = UDim2.new(1, -330*scaleFactor - marginX, 1, -150*scaleFactor - marginY)
+-- trollButton.BackgroundColor3 = Color3.fromRGB(50, 10, 50)
+-- trollButton.BorderColor3 = Color3.fromRGB(255, 0, 255)
+-- trollButton.BorderSizePixel = 3
+-- trollButton.TextColor3 = Color3.fromRGB(255, 0, 255)
+-- trollButton.Font = Enum.Font.GothamBold
+-- trollButton.TextSize = 20 * scaleFactor
+-- trollButton.Text = "😈 TROLL"
+-- trollButton.Parent = screenGui
+
+-- -- Reset Button
+-- local resetButton = Instance.new("TextButton")
+-- resetButton.Size = UDim2.new(0, 120 * scaleFactor, 0, 50 * scaleFactor)
+-- resetButton.Position = UDim2.new(1, -460*scaleFactor - marginX, 1, -150*scaleFactor - marginY)
+-- resetButton.BackgroundColor3 = Color3.fromRGB(50, 50, 10)
+-- resetButton.BorderColor3 = Color3.fromRGB(255, 255, 0)
+-- resetButton.BorderSizePixel = 3
+-- resetButton.TextColor3 = Color3.fromRGB(255, 255, 0)
+-- resetButton.Font = Enum.Font.GothamBold
+-- resetButton.TextSize = 20 * scaleFactor
+-- resetButton.Text = "🔄 RESET"
+-- resetButton.Parent = screenGui
+
+-- -- Results Frame
+-- local resultsFrame = Instance.new("Frame")
+-- resultsFrame.Size = UDim2.new(0, 540 * scaleFactor, 0, 400 * scaleFactor)
+-- resultsFrame.Position = UDim2.new(1, -540*scaleFactor - marginX, 1, -490*scaleFactor - marginY)
+-- resultsFrame.BackgroundTransparency = 1
+-- resultsFrame.Parent = screenGui
+
+-- -- Selection Box
+-- local selectionBox = Instance.new("Frame")
+-- selectionBox.BackgroundTransparency = 0.5
+-- selectionBox.BackgroundColor3 = Color3.fromRGB(0, 255, 150)
+-- selectionBox.BorderSizePixel = 2
+-- selectionBox.Visible = false
+-- selectionBox.Parent = resultsFrame
+
+-- -- Pagination Arrows
+-- local arrowMargin = 5
+
+-- local leftArrow = Instance.new("TextButton")
+-- leftArrow.Size = UDim2.new(0, 40*scaleFactor, 0, 40*scaleFactor)
+-- leftArrow.Text = "<"
+-- leftArrow.Font = Enum.Font.GothamBold
+-- leftArrow.TextSize = 32*scaleFactor
+-- leftArrow.BackgroundColor3 = Color3.fromRGB(15,15,15)
+-- leftArrow.TextColor3 = Color3.fromRGB(0,255,150)
+-- leftArrow.Parent = screenGui
+-- leftArrow.Position = UDim2.new(0, searchBox.AbsolutePosition.X, 0, searchBox.AbsolutePosition.Y - 40*scaleFactor - arrowMargin)
+
+-- local rightArrow = leftArrow:Clone()
+-- rightArrow.Text = ">"
+-- rightArrow.Parent = screenGui
+-- rightArrow.Position = UDim2.new(0, searchBox.AbsolutePosition.X + 50*scaleFactor, 0, searchBox.AbsolutePosition.Y - 40*scaleFactor - arrowMargin)
+-- GUI SETUP (MODERN UI) ======================================================
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "MegaWordSearchPro"
 screenGui.ResetOnSpawn = false
@@ -54,92 +149,112 @@ screenGui.Parent = playerGui
 local scaleFactor = 0.75
 local marginX, marginY = 20, 20
 
--- SearchBox
+-- MAIN CONTAINER (modern panel)
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 560 * scaleFactor, 0, 520 * scaleFactor)
+mainFrame.Position = UDim2.new(1, -560*scaleFactor - marginX, 1, -520*scaleFactor - marginY)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
+
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 14)
+
+local stroke = Instance.new("UIStroke")
+stroke.Color = Color3.fromRGB(60, 60, 70)
+stroke.Thickness = 1.5
+stroke.Parent = mainFrame
+
+-- SHADOW EFFECT
+local shadow = Instance.new("ImageLabel")
+shadow.Size = UDim2.new(1, 40, 1, 40)
+shadow.Position = UDim2.new(0, -20, 0, -20)
+shadow.BackgroundTransparency = 1
+shadow.Image = "rbxassetid://1316045217"
+shadow.ImageTransparency = 0.8
+shadow.ZIndex = 0
+shadow.Parent = mainFrame
+
+-- SEARCH BOX (modern)
 local searchBox = Instance.new("TextBox")
-searchBox.Size = UDim2.new(0, 540 * scaleFactor, 0, 90 * scaleFactor)
-searchBox.Position = UDim2.new(1, -540*scaleFactor - marginX, 1, -90*scaleFactor - marginY)
-searchBox.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-searchBox.BorderColor3 = Color3.fromRGB(0, 255, 255)
-searchBox.BorderSizePixel = 4
-searchBox.TextColor3 = Color3.fromRGB(0, 255, 255)
-searchBox.PlaceholderText = "⏳ Loading dictionary..."
-searchBox.Font = Enum.Font.GothamBold
-searchBox.TextSize = 36 * scaleFactor
+searchBox.Size = UDim2.new(1, -20, 0, 60 * scaleFactor)
+searchBox.Position = UDim2.new(0, 10, 0, 10)
+searchBox.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+searchBox.BorderSizePixel = 0
+searchBox.TextColor3 = Color3.fromRGB(220, 220, 220)
+searchBox.PlaceholderColor3 = Color3.fromRGB(140, 140, 140)
+searchBox.PlaceholderText = "Loading dictionary..."
+searchBox.Font = Enum.Font.Gotham
+searchBox.TextSize = 22 * scaleFactor
 searchBox.ClearTextOnFocus = false
-searchBox.TextEditable = true
-searchBox.Parent = screenGui
+searchBox.Parent = mainFrame
 
--- Toggle Button
-local toggleButton = Instance.new("TextButton")
-toggleButton.Size = UDim2.new(0, 200 * scaleFactor, 0, 50 * scaleFactor)
-toggleButton.Position = UDim2.new(1, -200*scaleFactor - marginX, 1, -150*scaleFactor - marginY)
-toggleButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-toggleButton.BorderColor3 = Color3.fromRGB(255, 0, 0)
-toggleButton.BorderSizePixel = 3
-toggleButton.TextColor3 = Color3.fromRGB(255, 0, 0)
-toggleButton.Font = Enum.Font.GothamBold
-toggleButton.TextSize = 20 * scaleFactor
-toggleButton.Text = "🔴 Console OFF"
-toggleButton.Parent = screenGui
+Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0, 10)
 
--- Troll Button
-local trollButton = Instance.new("TextButton")
-trollButton.Size = UDim2.new(0, 120 * scaleFactor, 0, 50 * scaleFactor)
-trollButton.Position = UDim2.new(1, -330*scaleFactor - marginX, 1, -150*scaleFactor - marginY)
-trollButton.BackgroundColor3 = Color3.fromRGB(50, 10, 50)
-trollButton.BorderColor3 = Color3.fromRGB(255, 0, 255)
-trollButton.BorderSizePixel = 3
-trollButton.TextColor3 = Color3.fromRGB(255, 0, 255)
-trollButton.Font = Enum.Font.GothamBold
-trollButton.TextSize = 20 * scaleFactor
-trollButton.Text = "😈 TROLL"
-trollButton.Parent = screenGui
+-- BUTTON STYLE FUNCTION
+local function createModernButton(text, color)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 120 * scaleFactor, 0, 40 * scaleFactor)
+    btn.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    btn.BorderSizePixel = 0
+    btn.TextColor3 = color
+    btn.Font = Enum.Font.GothamMedium
+    btn.TextSize = 16 * scaleFactor
+    btn.Text = text
 
--- Reset Button
-local resetButton = Instance.new("TextButton")
-resetButton.Size = UDim2.new(0, 120 * scaleFactor, 0, 50 * scaleFactor)
-resetButton.Position = UDim2.new(1, -460*scaleFactor - marginX, 1, -150*scaleFactor - marginY)
-resetButton.BackgroundColor3 = Color3.fromRGB(50, 50, 10)
-resetButton.BorderColor3 = Color3.fromRGB(255, 255, 0)
-resetButton.BorderSizePixel = 3
-resetButton.TextColor3 = Color3.fromRGB(255, 255, 0)
-resetButton.Font = Enum.Font.GothamBold
-resetButton.TextSize = 20 * scaleFactor
-resetButton.Text = "🔄 RESET"
-resetButton.Parent = screenGui
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
 
--- Results Frame
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = color
+    stroke.Thickness = 1
+    stroke.Transparency = 0.4
+    stroke.Parent = btn
+
+    return btn
+end
+
+-- BUTTONS
+local toggleButton = createModernButton("Console OFF", Color3.fromRGB(255, 80, 80))
+toggleButton.Position = UDim2.new(0, 10, 0, 80)
+toggleButton.Parent = mainFrame
+
+local trollButton = createModernButton("Troll", Color3.fromRGB(200, 100, 255))
+trollButton.Position = UDim2.new(0, 140, 0, 80)
+trollButton.Parent = mainFrame
+
+local resetButton = createModernButton("Reset", Color3.fromRGB(255, 200, 80))
+resetButton.Position = UDim2.new(0, 270, 0, 80)
+resetButton.Parent = mainFrame
+
+-- RESULTS FRAME
 local resultsFrame = Instance.new("Frame")
-resultsFrame.Size = UDim2.new(0, 540 * scaleFactor, 0, 400 * scaleFactor)
-resultsFrame.Position = UDim2.new(1, -540*scaleFactor - marginX, 1, -490*scaleFactor - marginY)
-resultsFrame.BackgroundTransparency = 1
-resultsFrame.Parent = screenGui
+resultsFrame.Size = UDim2.new(1, -20, 0, 360 * scaleFactor)
+resultsFrame.Position = UDim2.new(0, 10, 0, 130)
+resultsFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+resultsFrame.BorderSizePixel = 0
+resultsFrame.Parent = mainFrame
 
--- Selection Box
+Instance.new("UICorner", resultsFrame).CornerRadius = UDim.new(0, 10)
+
+-- SELECTION BOX
 local selectionBox = Instance.new("Frame")
-selectionBox.BackgroundTransparency = 0.5
-selectionBox.BackgroundColor3 = Color3.fromRGB(0, 255, 150)
-selectionBox.BorderSizePixel = 2
+selectionBox.BackgroundTransparency = 0.7
+selectionBox.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
+selectionBox.BorderSizePixel = 0
 selectionBox.Visible = false
 selectionBox.Parent = resultsFrame
 
--- Pagination Arrows
-local arrowMargin = 5
+Instance.new("UICorner", selectionBox).CornerRadius = UDim.new(0, 6)
 
-local leftArrow = Instance.new("TextButton")
-leftArrow.Size = UDim2.new(0, 40*scaleFactor, 0, 40*scaleFactor)
-leftArrow.Text = "<"
-leftArrow.Font = Enum.Font.GothamBold
-leftArrow.TextSize = 32*scaleFactor
-leftArrow.BackgroundColor3 = Color3.fromRGB(15,15,15)
-leftArrow.TextColor3 = Color3.fromRGB(0,255,150)
-leftArrow.Parent = screenGui
-leftArrow.Position = UDim2.new(0, searchBox.AbsolutePosition.X, 0, searchBox.AbsolutePosition.Y - 40*scaleFactor - arrowMargin)
+-- PAGINATION BUTTONS
+local leftArrow = createModernButton("<", Color3.fromRGB(120, 200, 255))
+leftArrow.Size = UDim2.new(0, 40, 0, 40)
+leftArrow.Position = UDim2.new(0, 10, 1, -50)
+leftArrow.Parent = mainFrame
 
-local rightArrow = leftArrow:Clone()
-rightArrow.Text = ">"
-rightArrow.Parent = screenGui
-rightArrow.Position = UDim2.new(0, searchBox.AbsolutePosition.X + 50*scaleFactor, 0, searchBox.AbsolutePosition.Y - 40*scaleFactor - arrowMargin)
+local rightArrow = createModernButton(">", Color3.fromRGB(120, 200, 255))
+rightArrow.Size = UDim2.new(0, 40, 0, 40)
+rightArrow.Position = UDim2.new(0, 60, 1, -50)
+rightArrow.Parent = mainFrame
 
 -- NOTIFICATION SYSTEM =========================================================
 local function notify(message)
