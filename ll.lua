@@ -114,7 +114,8 @@ resetButton.Parent = screenGui
 local resultsFrame = Instance.new("Frame")
 resultsFrame.Size = UDim2.new(0, 540 * scaleFactor, 0, 400 * scaleFactor)
 resultsFrame.Position = UDim2.new(1, -540*scaleFactor - marginX, 1, -490*scaleFactor - marginY)
-resultsFrame.BackgroundTransparency = 0
+resultsFrame.BackgroundColor3 = Color3.fromRGB(0, 20, 20)
+resultsFrame.BackgroundTransparency = 0.9
 resultsFrame.BackgroundColor3 = Color3.fromRGB(5, 5, 5)
 
 local resultsHeight = 400 * scaleFactor
@@ -131,7 +132,7 @@ resultsFrame.Parent = screenGui
 
 -- Selection Box
 local selectionBox = Instance.new("Frame")
-selectionBox.BackgroundTransparency = 0.85
+selectionBox.BackgroundTransparency = 0.9
 selectionBox.BackgroundColor3 = Color3.fromRGB(0, 255, 150)
 selectionBox.BorderColor3 = Color3.fromRGB(0, 255, 255)
 selectionBox.BorderSizePixel = 2
