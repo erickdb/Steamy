@@ -1,4 +1,4 @@
-print("[MEGA WORD SEARCH PRO] Initializing...")
+print("[Copat SC] Initializing...")
 
 -- SERVICES ====================================================================
 local Players = game:GetService("Players")
@@ -46,7 +46,7 @@ local currentPage = 1
 
 -- -- GUI SETUP ===================================================================
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "MegaWordSearchPro"
+screenGui.Name = "CopatSC"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
@@ -163,7 +163,7 @@ rightArrow.Position = UDim2.new(0, searchBox.AbsolutePosition.X + 50*scaleFactor
 local function notify(message)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
-            Title = "MegaWordSearch Pro",
+            Title = "Copat SC",
             Text = message,
             Duration = 3
         })
@@ -471,7 +471,7 @@ end)
 -- START =======================================================================
 task.spawn(function()
     if loadDictionary() then
-        print("[MEGA WORD SEARCH PRO – READY]")
+        print("[Copat SC – READY]")
         notify("🚀 Ready! " .. #allWords .. " words loaded")
     end
 end)
