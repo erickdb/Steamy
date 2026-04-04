@@ -116,6 +116,17 @@ resultsFrame.Size = UDim2.new(0, 540 * scaleFactor, 0, 400 * scaleFactor)
 resultsFrame.Position = UDim2.new(1, -540*scaleFactor - marginX, 1, -490*scaleFactor - marginY)
 resultsFrame.BackgroundTransparency = 0
 resultsFrame.BackgroundColor3 = Color3.fromRGB(5, 5, 5)
+
+local resultsHeight = 400 * scaleFactor
+local gap = 7
+
+resultsFrame.Position = UDim2.new(
+    1,
+    -540*scaleFactor - marginX, 
+    1, 
+    resetButton.Position.Y.Offset - resultsHeight - gap
+)
+
 resultsFrame.Parent = screenGui
 
 -- Selection Box
