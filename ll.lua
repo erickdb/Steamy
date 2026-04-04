@@ -131,7 +131,7 @@ resultsFrame.Parent = screenGui
 
 -- Selection Box
 local selectionBox = Instance.new("Frame")
-selectionBox.BackgroundTransparency = 0.2
+selectionBox.BackgroundTransparency = 0.85
 selectionBox.BackgroundColor3 = Color3.fromRGB(0, 255, 150)
 selectionBox.BorderColor3 = Color3.fromRGB(0, 255, 255)
 selectionBox.BorderSizePixel = 2
@@ -150,12 +150,12 @@ leftArrow.BackgroundColor3 = Color3.fromRGB(10,10,10)
 leftArrow.TextColor3 = Color3.fromRGB(0,255,255)
 leftArrow.BorderSizePixel = 0
 leftArrow.Parent = screenGui
-leftArrow.Position = UDim2.new(0, searchBox.AbsolutePosition.X, 0, searchBox.AbsolutePosition.Y - 40*scaleFactor - arrowMargin)
+leftArrow.Position = UDim2.new(0, searchBox.AbsolutePosition.X - 4, 0, searchBox.AbsolutePosition.Y - 40*scaleFactor - arrowMargin)
 
 local rightArrow = leftArrow:Clone()
 rightArrow.Text = ">"
 rightArrow.Parent = screenGui
-rightArrow.Position = UDim2.new(0, searchBox.AbsolutePosition.X + 50*scaleFactor, 0, searchBox.AbsolutePosition.Y - 40*scaleFactor - arrowMargin)
+rightArrow.Position = UDim2.new(0, searchBox.AbsolutePosition.X + 50*scaleFactor - 4, 0, searchBox.AbsolutePosition.Y - 40*scaleFactor - arrowMargin)
 
 
 -- NOTIFICATION SYSTEM =========================================================
