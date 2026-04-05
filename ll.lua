@@ -35,11 +35,6 @@ local DICTIONARY_URLS = {
     "https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt"
 }
 
-local customWords = {
-    "gank","ganks","ganked", "ganking", "ganker","gankable","ungankable",
-    "alay","alays","alayers"
-}
-
 -- GLOBAL VARIABLES ===========================================================
 local allWords = {}
 local consoleAutoComplete = false
@@ -235,23 +230,6 @@ local function loadFromText(content)
     return #allWords > 0
 end
 
-local function injectCustomWords()
-    local existing = {}
-    
-    for _, w in ipairs(allWords) do
-        existing[w] = true
-    end
-
-    for _, w in ipairs(customWords) do
-        w = w:lower()
-        if not existing[w] then
-            table.insert(allWords, w)
-        end
-    end
-
-    print("[CUSTOM] Injected words:", #customWords)
-end
-
 local function loadDictionary()
     print("[INFO] Downloading dictionary...")
     notify("Loading dictionary...")
@@ -272,7 +250,17 @@ local function loadDictionary()
             end
             
             if loaded then
-                injectCustomWords()
+                allWords = allWords or {}
+                -- inject manual
+                local words = {
+                    "gank","ganks","ganked","ganking",
+                    "ganker","gankable","ungankable",
+                    "alay","alays","alayers"
+                }
+                
+                for _, w in ipairs(words) do
+                    table.insert(allWords, w)
+                end
                 print("[✓] " .. #allWords .. " words loaded from source #" .. i)
                 searchBox.PlaceholderText = "Type a word"
                 notify("✅ Dictionary loaded! (" .. #allWords .. " words)")
