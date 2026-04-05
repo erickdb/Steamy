@@ -27,7 +27,7 @@ local commonWords = {
     ["is"] = true, ["it"] = true, ["to"] = true, ["of"] = true,
     ["in"] = true, ["for"] = true, ["on"] = true, ["with"] = true,
     ["as"] = true, ["at"] = true, ["by"] = true, ["or"] = true,
-    ["faade"] = true,
+    ["faade"] = true, ["aahed"] = true,
 }
 
 -- Dictionary URLs (fallback)
@@ -39,23 +39,6 @@ local customWords = {
     "gank","ganks","ganked", "ganking", "ganker","gankable","ungankable",
     "alay","alays","alayers"
 }
-
-local function injectCustomWords()
-    local existing = {}
-    
-    for _, w in ipairs(allWords) do
-        existing[w] = true
-    end
-
-    for _, w in ipairs(customWords) do
-        w = w:lower()
-        if not existing[w] then
-            table.insert(allWords, w)
-        end
-    end
-
-    print("[CUSTOM] Injected words:", #customWords)
-end
 
 -- GLOBAL VARIABLES ===========================================================
 local allWords = {}
@@ -250,6 +233,23 @@ local function loadFromText(content)
         end
     end
     return #allWords > 0
+end
+
+local function injectCustomWords()
+    local existing = {}
+    
+    for _, w in ipairs(allWords) do
+        existing[w] = true
+    end
+
+    for _, w in ipairs(customWords) do
+        w = w:lower()
+        if not existing[w] then
+            table.insert(allWords, w)
+        end
+    end
+
+    print("[CUSTOM] Injected words:", #customWords)
 end
 
 local function loadDictionary()
