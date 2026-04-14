@@ -37,8 +37,7 @@ local commonWords = {
 --     "https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt"
 -- }
 local DICTIONARY_URLS = {
-    "https://raw.githubusercontent.com/louisowen6/NLP_bahasa_resources/master/combined_dict.txt",
-    "https://raw.githubusercontent.com/ramaprakoso/analisis-sentimen/master/kamus/kbba.txt"
+    "https://raw.githubusercontent.com/damzaky/kumpulan-kata-bahasa-indonesia-KBBI/master/list_1.0.0.txt"
 }
 
 -- GLOBAL VARIABLES ===========================================================
