@@ -27,12 +27,18 @@ local commonWords = {
     ["is"] = true, ["it"] = true, ["to"] = true, ["of"] = true,
     ["in"] = true, ["for"] = true, ["on"] = true, ["with"] = true,
     ["as"] = true, ["at"] = true, ["by"] = true, ["or"] = true,
-    ["faade"] = true, ["aahed"] = true,
+    ["faade"] = true, ["aahed"] = true, ["dan"] = true, ["yang"] = true, ["di"] = true,
+    ["ke"] = true, ["dari"] = true, ["ini"] = true,
+    ["itu"] = true, ["untuk"] = true,
 }
 
 -- Dictionary URLs (fallback)
+-- local DICTIONARY_URLS = {
+--     "https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt"
+-- }
 local DICTIONARY_URLS = {
-    "https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt"
+    "https://raw.githubusercontent.com/louisowen6/NLP_bahasa_resources/master/combined_dict.txt",
+    "https://raw.githubusercontent.com/ramaprakoso/analisis-sentimen/master/kamus/kbba.txt"
 }
 
 -- GLOBAL VARIABLES ===========================================================
