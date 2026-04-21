@@ -33,12 +33,12 @@ local commonWords = {
 }
 
 -- Dictionary URLs (fallback)
--- local DICTIONARY_URLS = {
---     "https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt"
--- }
 local DICTIONARY_URLS = {
-    "https://raw.githubusercontent.com/damzaky/kumpulan-kata-bahasa-indonesia-KBBI/master/list_1.0.0.txt"
+    "https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt"
 }
+-- local DICTIONARY_URLS = {
+--     "https://raw.githubusercontent.com/damzaky/kumpulan-kata-bahasa-indonesia-KBBI/master/list_1.0.0.txt"
+-- }
 
 -- GLOBAL VARIABLES ===========================================================
 local allWords = {}
