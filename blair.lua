@@ -31,7 +31,7 @@ local enabled = true
 
 local function updateState()
 	local doubleStamina = player:FindFirstChild("DoubleStamina")
-	local headCam = player:FindFirstChild("HeadCam")
+	local NightVision = player:FindFirstChild("NightVision")
 
 	if doubleStamina then
 		if doubleStamina:IsA("BoolValue") then
@@ -41,11 +41,11 @@ local function updateState()
 		end
 	end
 
-	if headCam then
-		if headCam:IsA("Script") or headCam:IsA("LocalScript") then
-			headCam.Disabled = not enabled
-		elseif headCam:IsA("BoolValue") then
-			headCam.Value = enabled
+	if NightVision then
+		if NightVision:IsA("Script") or NightVision:IsA("LocalScript") then
+			NightVision.Disabled = not enabled
+		elseif NightVision:IsA("BoolValue") then
+			NightVision.Value = enabled
 		end
 	end
 
