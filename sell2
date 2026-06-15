@@ -95,14 +95,6 @@ task.spawn(function()
 			local success, result = pcall(function()
 				return Networking.NPCS.SellAll:Fire()
 			end)
-
-			if success and result then
-				if type(result) == "table" then
-					for k, v in pairs(result) do
-						print(k, v)
-					end
-				end
-			end
 		end
 
 		task.wait(0.5)
