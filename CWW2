@@ -1162,11 +1162,14 @@ function Executor:ManageDiplomacy()
     local myCountryData = RS.Countries:FindFirstChild(World.MyCountry)
     if not myCountryData then return end
     
-    -- Request alliances (Max 3 active alliances)
+    -- Request alliances (Max 3 active alliances, only if PP > 60 to preserve war justification budget)
     local activeAlliesCount = #World.MyAllies
-    if activeAlliesCount < 3 then
+    local currentPP = myCountryData:GetAttribute("politicalPower") or 0
+    if activeAlliesCount < 3 and currentPP > 60 then
         local allyTargets = Brain:FindBestAlly()
+        local sentThisCycle = false
         for _, candidate in ipairs(allyTargets) do
+            if sentThisCycle then break end
             local allyName = candidate.Country
             local score = candidate.Score
             if score > 20 then
@@ -1184,7 +1187,7 @@ function Executor:ManageDiplomacy()
                             if success then
                                 Stats.AlliancesFormed = Stats.AlliancesFormed + 1
                                 Log("🤝", "Alliance Request Sent → " .. allyName)
-                                break -- Send only 1 alliance request per cycle to conserve PP
+                                sentThisCycle = true -- Only 1 per cycle
                             end
                         end
                     end
@@ -1672,14 +1675,15 @@ function Executor:ExpandAndConquer()
                         local tTile = troopModel:GetAttribute("targetTile")
                         local isTroopIdle = (state == "Idle" or state == "Waiting") and (not tTile or tTile == "None" or tTile == "")
                         if isTroopIdle then
-                        local path = computePath(tile, groupTile, allowedColors)
-                        if path and #path > 1 then
-                            local shortPath = {}
-                            for i = 1, math.min(#path, 10) do
-                                table.insert(shortPath, path[i])
+                            local path = computePath(tile, groupTile, allowedColors)
+                            if path and #path > 1 then
+                                local shortPath = {}
+                                for i = 1, math.min(#path, 10) do
+                                    table.insert(shortPath, path[i])
+                                end
+                                SafeFire(GetRemote("Player", "MoveTroop"), shortPath)
+                                Stats.TroopsMoved = Stats.TroopsMoved + 1
                             end
-                            SafeFire(GetRemote("Player", "MoveTroop"), shortPath)
-                            Stats.TroopsMoved = Stats.TroopsMoved + 1
                         end
                     end
                 end
@@ -1698,34 +1702,35 @@ function Executor:ExpandAndConquer()
                 local tTile = troopModel:GetAttribute("targetTile")
                 local isTroopIdle = (state == "Idle" or state == "Waiting") and (not tTile or tTile == "None" or tTile == "")
                 if isTroopIdle then
-                local tColor = troopModel:GetAttribute("color")
-                if tColor and tColor == World.MyColor then
-                    -- Find closest reachable target
-                    local sortedTargets = {}
-                    for _, target in ipairs(targetTiles) do
-                        local dist = (tile.Position - target.Position).Magnitude
-                        table.insert(sortedTargets, {Tile = target, Dist = dist})
-                    end
-                    table.sort(sortedTargets, function(a, b) return a.Dist < b.Dist end)
-                    
-                    local path = nil
-                    local chosenTarget = nil
-                    for i = 1, math.min(#sortedTargets, 3) do -- Only check top 3 closest targets to save CPU
-                        path = computePath(tile, sortedTargets[i].Tile, allowedColors)
-                        if path then
-                            chosenTarget = sortedTargets[i].Tile
-                            break
+                    local tColor = troopModel:GetAttribute("color")
+                    if tColor and tColor == World.MyColor then
+                        -- Find closest reachable target
+                        local sortedTargets = {}
+                        for _, target in ipairs(targetTiles) do
+                            local dist = (tile.Position - target.Position).Magnitude
+                            table.insert(sortedTargets, {Tile = target, Dist = dist})
                         end
-                    end
-                    
-                    if path and #path > 1 then
-                        local shortPath = {}
-                        for i = 1, math.min(#path, 10) do
-                            table.insert(shortPath, path[i])
+                        table.sort(sortedTargets, function(a, b) return a.Dist < b.Dist end)
+                        
+                        local path = nil
+                        local chosenTarget = nil
+                        for i = 1, math.min(#sortedTargets, 3) do -- Only check top 3 closest targets to save CPU
+                            path = computePath(tile, sortedTargets[i].Tile, allowedColors)
+                            if path then
+                                chosenTarget = sortedTargets[i].Tile
+                                break
+                            end
                         end
-                        SafeFire(GetRemote("Player", "MoveTroop"), shortPath)
-                        Log("⚔️", "Moving troop towards enemy target " .. (chosenTarget:GetAttribute("cityName") or chosenTarget.Name))
-                        Stats.TroopsMoved = Stats.TroopsMoved + 1
+                        
+                        if path and #path > 1 then
+                            local shortPath = {}
+                            for i = 1, math.min(#path, 10) do
+                                table.insert(shortPath, path[i])
+                            end
+                            SafeFire(GetRemote("Player", "MoveTroop"), shortPath)
+                            Log("⚔️", "Moving troop towards enemy target " .. (chosenTarget:GetAttribute("cityName") or chosenTarget.Name))
+                            Stats.TroopsMoved = Stats.TroopsMoved + 1
+                        end
                     end
                 end
             end
