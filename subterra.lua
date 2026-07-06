@@ -86,7 +86,48 @@ local sellRemote = remotes:WaitForChild("NPCStore"):WaitForChild("Sell")
 local upgradePickaxeRemote = remotes:WaitForChild("Blacksmith"):WaitForChild("UpgradePickaxe")
 local upgradeBackpackRemote = remotes:WaitForChild("Backpack"):WaitForChild("UpgradeBackpack")
 
-local SteamyUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/erickdb/SteamyUI/refs/heads/main/SteamyUI.lua"))()
+-- Robust loading of SteamyUI library with fallback to jsDelivr CDN
+local SteamyUI
+do
+    local loadstring = loadstring or load
+    if not loadstring then
+        error("Executor Anda tidak mendukung loadstring/load!")
+    end
+    
+    local urls = {
+        "https://cdn.jsdelivr.net/gh/erickdb/SteamyUI@main/SteamyUI.lua",
+        "https://raw.githubusercontent.com/erickdb/SteamyUI/refs/heads/main/SteamyUI.lua"
+    }
+    
+    local rawUI, loadError
+    for _, url in ipairs(urls) do
+        local success, res = pcall(function()
+            return game:HttpGet(url)
+        end)
+        if success and res and res ~= "" and not res:find("<!DOCTYPE html>") and not res:find("<html>") then
+            rawUI = res
+            break
+        else
+            loadError = tostring(res or "Empty response")
+        end
+    end
+    
+    if not rawUI then
+        error("Gagal mengunduh library UI dari semua sumber! Detail error terakhir: " .. tostring(loadError))
+    end
+    
+    local compileFunc, compileError = loadstring(rawUI)
+    if not compileFunc then
+        error("Gagal compile library UI: " .. tostring(compileError))
+    end
+    
+    local success, result = pcall(compileFunc)
+    if not success then
+        error("Gagal menjalankan library UI: " .. tostring(result))
+    end
+    
+    SteamyUI = result
+end
 
 -- Register custom emojis in SteamyUI Icon registry
 SteamyUI.Icons["⛏️"] = "⛏️"
